@@ -217,12 +217,19 @@ class JarSerial:
                 return line
         raise TimeoutError(f"No Jar response for {command.split()[1] if len(command.split()) > 1 else command}")
 
-    def _disconnect_internal(self):
-        old_port = self.port_name
+    def _disconnect_internal(self, expected_ser: serial.Serial | None = None):
         with self.lock:
-            if self.ser is not None:
+            # A reader or writer may report an old connection after the scan
+            # loop has already attached a replacement. Never close that new
+            # connection in response to a stale thread.
+            if expected_ser is not None and self.ser is not expected_ser:
+                return
+
+            ser = self.ser
+            old_port = self.port_name
+            if ser is not None:
                 try:
-                    self.ser.close()
+                    ser.close()
                 except Exception:
                     pass
             self.ser = None

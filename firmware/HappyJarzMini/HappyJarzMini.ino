@@ -1,12 +1,12 @@
-// HAPPY JARZ integrated firmware v0.5
-// BloomCore: preserve proven APA106 RMT layer; add six-input abstraction,
-// Wi-Fi/NTP clock, alarm state, auto-off timer, persistence, and USB protocol.
+// HAPPY JARZ ESP32-S3 SuperMini firmware v0.17.13
+// SIMPLE profile: six capacitive inputs, 128x64 OLED, four APA106 lamps,
+// local games/screensavers, and the HAPPY JARZ USB control protocol.
 //
-// KNOWN-GOOD HARDWARE LAYER PRESERVED:
-//   GPIO7 -> 220R -> APA106 #1 DIN -> #2 DIN
+// HARDWARE MAP:
+//   GPIO7 -> 220R -> APA106 #1 DIN -> #2 DIN -> #3 DIN -> #4 DIN
 //   RMT 10 MHz; 0 = 4/14 ticks, 1 = 14/4 ticks; 100 us latch low
 //
-// SIX INPUT MAP:
+// SIX TOUCH INPUTS:
 //   GPIO4  = UP
 //   GPIO5  = DOWN
 //   GPIO9  = LEFT
@@ -14,10 +14,8 @@
 //   GPIO1  = A / SELECT
 //   GPIO2  = B / BACK / ESC; hold B = HOME event
 //
-// OLED NOTE:
-//   Current bench OLED wiring is intentionally NOT reimplemented here because
-//   the known-good OLED source is not yet present in GitHub. This firmware
-//   exposes display settings/protocol without replacing the working display layer.
+// OLED:
+//   128x64 I2C SSD1306, address 0x3C, SDA GPIO8, SCL GPIO6.
 
 #include <Arduino.h>
 #include "esp_system.h"

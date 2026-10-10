@@ -1,59 +1,77 @@
 # HAPPY JARZ ESP32-S3 Mini + Pi Mini App
 
-This is the single source repository for the HAPPY JARZ ESP32-S3 SuperMini firmware and its matching Raspberry Pi controller app.
+This repository contains the HAPPY JARZ ESP32-S3 SuperMini firmware and its matching Raspberry Pi controller app.
 
-## Current source pair
+## Current release
 
-- Firmware: **0.18.4**
-- Pi Mini app: **1.11.0**
-- Board profile: **SIMPLE / ESP32-S3 SuperMini / 4 MB flash**
+| Component | Version / target |
+| --- | --- |
+| Firmware | **0.18.4** |
+| Pi Mini app | **1.11.0** |
+| Board | SIMPLE / ESP32-S3 SuperMini / 4 MB flash |
 
-The repository contains the firmware, Mini app, USB watcher, controller, and art tools. It does not depend on BloomCircuit or another checkout.
+Firmware, app, USB watcher, controller and art tools are all here. This checkout builds directly from `firmware/HappyJarzMini`; the BloomCircuit staging/patch flasher belongs to the older repository. See [firmware instructions](firmware/README.md) and [recorded verification](BUILD_STATUS.md).
 
-## Run the Pi Mini app
+## Raspberry Pi app
 
-On Raspberry Pi OS:
+From the repository root:
 
 ```bash
 sudo apt-get install python3-tk python3-serial
 python3 mini-app/app.py
 ```
 
-The app includes LIGHTS + CONTROL, WIFI + CLOCK, DISPLAY + INPUT, PROFILE, ART, and SERVICE tabs. PROFILE stores the owner's name and annual birthday (month and day only) on the Pi, keyed to the Jar's unique ESP32 chip ID, and in the Jar's settings memory. It shows a live countdown. On the birthday, the Jar runs a colorful light pattern and shows an OLED greeting while its clock has the correct date. The app syncs the Jar clock whenever it connects over USB. Firmware 0.18.2 also adds an on-board PROFILE editor for standalone owners, manual date/time access, and a randomized birthday countdown at startup when the clock is set. Firmware 0.18.3 shows the countdown for five seconds on every OFF → ON cycle of the OLED/lamp 3.3 V accessory switch, then resumes the previous screen. A saved birthday and valid clock are required; on the birthday it shows the greeting.
+The app includes LIGHTS + CONTROL, WIFI + CLOCK, DISPLAY + INPUT, PROFILE, ART and SERVICE tabs. See [Mini app instructions](mini-app/README.md).
 
-Birthday Mode in firmware 0.18.4 runs for the owner's local birthday: an animated cake greeting at startup/switch-on, slow rainbow shimmer at the saved brightness, and birthday cake/balloon/confetti/present/wish screens mixed into the chosen screensaver. On the present screen, press **A** for a random wish; **B** returns to normal controls. Choosing a lamp color or pattern takes control of the lights for the rest of the powered birthday session. At midnight the normal saved pattern resumes. The mode uses the saved birthday and a valid clock.
-
-The ART tab has a 128×64 monochrome editor and frame maker. Create a still picture or two-frame animation, name it, and save it to **MY PICTURES**. Only saved pictures are included in a gallery transfer. MY PICTURES has a scrollbar for browsing the saved gallery.
-
-Choose **Send gallery to Jar** to transfer the saved pictures. The board stores them in its dedicated SPIFFS art filesystem, so it can display them with USB disconnected. To start cycling through the transferred pictures, open **DISPLAY + INPUT** and select **ART GALLERY** in the screensaver controls. Two-frame pictures animate on the OLED.
-
-The first gallery transfer asks before initializing the art filesystem. No partition table or erase-all setting is changed.
-
-## Launch the app when a Jar is plugged in
-
-Install exactly one HAPPY JARZ desktop autostart entry:
+Install one HAPPY JARZ desktop autostart entry:
 
 ```bash
 sh mini-app/install_autostart.sh
 ```
 
-Then log out and back in, or start the watcher once for the current session:
+Log out and back in, or start the watcher for this session:
 
 ```bash
 pkill -f '[h]appyjarz_plug_watch.py' || true
-/usr/bin/python3 "$PWD/mini-app/happyjarz_plug_watch.py" >/dev/null 2>&1 &
+nohup /usr/bin/python3 "$PWD/mini-app/happyjarz_plug_watch.py" >/dev/null 2>&1 </dev/null &
 ```
 
-The watcher opens the controller only after a HAPPY JARZ identity handshake. The reported serial is derived from the chip ID, so different boards no longer all report the same placeholder serial. The watcher has a single-instance lock, and the controller keeps retrying if another USB watcher briefly owns the port. Check `~/.happyjarz/plug_watch.log` and `~/.happyjarz/controller.log` if the app does not connect.
+The watcher launches the app only after receiving a HAPPY JARZ identity. It uses a single-instance lock, checks this checkout's Git upstream for fast-forward app/source updates, and leaves firmware uploading to the separate update process. The board's serial is derived from its ESP32 chip ID. Logs are in `~/.happyjarz/`.
 
-## Compile the Mini firmware
+## Standalone profile and birthday countdown
 
-```bash
-arduino-cli core install esp32:esp32
-arduino-cli lib install U8g2
-arduino-cli compile --fqbn esp32:esp32:esp32s3:CDCOnBoot=cdc firmware/HappyJarzMini
-```
+Press **A** from HOME, scroll to **PROFILE**, then press **A**. Owners can save their name and annual birthday, set date/time, or clear the profile using the six touch controls. No Pi or PC is needed for these board controls.
 
-Build successfully before uploading. Firmware 0.18.4 still needs a clean ESP32 compile and Birthday Mode board test; see `firmware/README.md` and `BUILD_STATUS.md`.
+The birthday stores month/day only. A February 29 birthday is observed on March 1 in non-leap years. Profile values remain in Preferences/NVS after power loss.
 
-See [firmware/README.md](firmware/README.md) and [BUILD_STATUS.md](BUILD_STATUS.md) for the build steps and verification state.
+With a saved birthday and valid clock:
+- Restoring the OLED/lamp **3.3 V accessory switch** shows the countdown for **five seconds**, then returns to the previous screen.
+- A full ESP32 startup has a one-in-three countdown chance on ordinary days.
+- On the birthday, the Jar always queues an animated cake greeting when the date becomes available.
+
+The accessory switch powers the screen and lamps while the ESP32 continues running. After full ESP32 power loss, its clock needs manual setting, Wi-Fi time sync or app USB time sync; there is no battery-backed RTC.
+
+## All-day Birthday Mode
+
+Birthday Mode follows the owner's local date:
+- A five-second animated cake greeting at startup or accessory switch-on.
+- Slow rainbow shimmer at the selected brightness. OFF remains available; choosing a lamp color or pattern takes control of the lights for the rest of that powered birthday session.
+- Cake, balloons, confetti, present and wish screens mixed with the chosen screensaver/art gallery.
+- **A** on the present reveals a random wish for six seconds; **B** exits the screensaver.
+- At midnight, birthday visuals end and the normal color/pattern choices resume.
+
+Games, menus, accessory pause and the existing one-hour sleep behavior remain usable. To test, temporarily save today's birthday in PROFILE and restore the real birthday afterward.
+
+## Art gallery
+
+The ART tab provides a 128×64 monochrome editor for still pictures and two-frame animations. Name and save drawings to **MY PICTURES**; only saved pictures are transferred.
+
+**Send gallery to Jar** transfers up to 50 pictures into the existing SPIFFS art filesystem. The first gallery initialization asks for confirmation. Select **ART GALLERY** under DISPLAY + INPUT to play the pictures on the OLED. Stored art works with USB disconnected.
+
+## Firmware updates
+
+Follow the [compile and upload workflow](firmware/README.md#compile-and-upload-on-raspberry-pi). It runs detached, compiles before uploading, uploads at 115200 baud and restarts the watcher after success.
+
+**Keep USB connected and the accessory switch steady until the upload finishes and the app opens.** A blank OLED during flashing does not mean the update is finished. Check the exit marker, upload log and fresh `fw=0.18.4` identity.
+
+See [BUILD_STATUS.md](BUILD_STATUS.md) for the distinction between host tests, reported board results and remaining release checks.

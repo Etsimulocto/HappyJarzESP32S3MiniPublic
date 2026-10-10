@@ -2,7 +2,7 @@
 
 **Board:** ESP32-S3 SuperMini (SIMPLE profile, 4 MB flash)  
 **Firmware source:** 0.17.13  
-**Pi Mini app:** 1.9.1  
+**Pi Mini app:** 1.9.2  
 **Source reference:** `Etsimulocto/BloomCircuit` commit `7412f7ef0c5faf84310b7c7fe1612f29f6bb84ba`
 
 ## What is in this repository

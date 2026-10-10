@@ -1,34 +1,28 @@
-# HAPPY JARZ ESP32-S3 Mini build status
+# HAPPY JARZ Mini build status
 
-**Updated:** 2026-10-10  
-**Board:** ESP32-S3 SuperMini  
-**Current release in this repository:** none published yet
+**Board:** ESP32-S3 SuperMini (SIMPLE profile, 4 MB flash)  
+**Firmware source:** 0.17.13  
+**Pi Mini app:** 1.9.0  
+**Source reference:** `Etsimulocto/BloomCircuit` commit `7412f7ef0c5faf84310b7c7fe1612f29f6bb84ba`
 
-## Known-good Mini firmware reference
+## What is in this repository
 
-- **Firmware:** v0.17.13
-- **Source location:** `Etsimulocto/BloomCircuit`, branch `feature/happyjarz-platform`
-- **Source commit:** `7412f7ef0c5faf84310b7c7fe1612f29f6bb84ba`
-- **Build method:** base sketch plus the Happy Jarz staging/patch scripts
-- **Target verified:** ESP32-S3 SuperMini
+- A final staged, compile-ready firmware sketch plus the arcade source/header it includes.
+- The matching Pi app, its controller layers, art editor, watcher, and seven mini-games.
+- One version file for firmware and one for the app.
 
-The firmware was tested on the Mini. This new repo is the place for its clean, self-contained release copy; it has not been copied here yet, so there is no flashable "latest" sketch here today. The Pi controller app version is tracked separately and is not the ESP32 firmware version.
+The app and firmware source are together here. You do not need to pull app code or firmware patches from another checkout.
 
-## Boot-screen report
+## Verification
 
-The ESP32-S3 Mini is reported stuck on its boot screen. The Pi app split/refresh command updates host files and watchers; it does not flash the ESP32. The reported split did not upload firmware.
+- The original v0.17.13 staging verifier passed while assembling this package.
+- Python syntax checks passed for the Mini app and game modules.
+- All four pixel-art unit tests passed.
+- A fresh Arduino CLI compile was not run in this workspace.
+- The currently connected Mini has not returned a valid `HJ|IDENTITY` line during the present boot-screen diagnosis. Its installed firmware is therefore unknown.
 
-Before changing firmware, capture the Mini's serial output at 115200 baud from reset with the HAPPY JARZ and BloomPetz watchers stopped. Also note the exact screen text/pattern and which USB-C port is in use. Keep the current flash intact; do not run `erase_flash`.
+The connected board’s boot-screen issue remains open. Do not infer the installed version from Pi app files. Do not run `erase_flash` as a troubleshooting shortcut. Close serial watchers before any later port test or firmware upload.
 
-## Clean release checklist
+## Release gate
 
-A build becomes the single current release here after it has:
-
-1. one self-contained sketch with the version embedded;
-2. documented ESP32-S3 Mini board and Arduino settings;
-3. a clean compile from the documented steps;
-4. a successful upload and reboot on the Mini;
-5. a serial identity/version check plus OLED, touch, and lamp smoke tests;
-6. matching release notes and a Git tag.
-
-Until then, v0.17.13 remains a verified reference build in the controller repository and this repo intentionally publishes no flashable release.
+Mark a firmware release verified only after a clean compile with the documented FQBN, a successful upload to the ESP32-S3 SuperMini, and checks for serial identity, OLED, touch controls, and lamps.

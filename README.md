@@ -1,17 +1,49 @@
-# HAPPY JARZ ESP32-S3 Mini Firmware
+# HAPPY JARZ ESP32-S3 Mini + Pi Mini App
 
-This is the public home for **HAPPY JARZ ESP32-S3 Mini firmware builds**. It is firmware only; the Raspberry Pi controller and other apps stay in their own repositories.
+This repository is the single source home for the HAPPY JARZ **ESP32-S3 SuperMini** firmware and its matching Raspberry Pi controller app.
 
-## Current status
+## Current source pair
 
-The project hardware is the **ESP32-S3 SuperMini**. The known-good firmware reference is **v0.17.13**, tested on that Mini board. See [BUILD_STATUS.md](BUILD_STATUS.md) for the source location and the current boot-screen diagnostic status.
+- Firmware: **0.17.13**
+- Pi Mini app: **1.9.0**
+- Board profile: **SIMPLE / ESP32-S3 SuperMini / 4 MB flash**
+- Source import: BloomCircuit commit `7412f7ef0c5faf84310b7c7fe1612f29f6bb84ba`
 
-This repository is being kept to one clean, reproducible firmware build at a time. It does not yet contain the v0.17.13 sketch: that build currently lives in BloomCircuit as a base sketch plus a staging pipeline. We will move a self-contained, verified Mini build here before calling it the repository's current release.
+The files needed to build and run this pair are in this repository. The firmware folder contains the final staged sketch and its arcade translation units; it does not require a patch-chain from another checkout.
 
-## Release rule
+## Run the Pi Mini app
 
-Each release must include one compile-ready sketch, its exact firmware version, the ESP32-S3 Mini board settings, required libraries, reproducible build steps, and test notes. The default branch is for the current clean build; older releases belong in Git tags/releases. Pi applications and unverified firmware experiments do not belong here.
+On Raspberry Pi OS:
 
-## Flashing
+```bash
+sudo apt-get install python3-tk python3-serial
+python3 mini-app/app.py
+```
 
-Do not flash based on a version number alone. Confirm the selected build is for the ESP32-S3 Mini, stop serial watchers, confirm the USB port, compile and verify, then upload. If the device is stuck on its boot screen, capture startup serial output before changing its firmware.
+The app includes LIGHTS + CONTROL, DISPLAY + INPUT, custom marquee sayings, the 128×64 pixel-art editor, and the service panel. The art editor saves its library on the Pi and exports U8g2 C headers. **Sending saved art to the Jar is not implemented in firmware 0.17.13.**
+
+To run the USB plug watcher instead:
+
+```bash
+python3 mini-app/happyjarz_plug_watch.py
+```
+
+The watcher launches the app only after a HAPPY JARZ `HELLO` identity handshake.
+
+## Compile the Mini firmware
+
+Install the ESP32 Arduino core and U8g2, then compile the included sketch:
+
+```bash
+arduino-cli core install esp32:esp32
+arduino-cli lib install U8g2
+arduino-cli compile --fqbn esp32:esp32:esp32s3:CDCOnBoot=cdc firmware/HappyJarzMini
+```
+
+The board settings and serial protocol are documented in [firmware/README.md](firmware/README.md). Compile and verify the target before uploading. Do not erase flash as a routine update; that can remove saved Jar settings.
+
+## Verification status
+
+The v0.17.13 staging verifier passed while this package was assembled. A fresh Arduino compile and smoke test on the currently connected Mini have **not** been completed in this packaging pass. The live board’s boot-screen problem remains unresolved, so this repository does not claim that the current connected unit has passed the release checklist.
+
+See [BUILD_STATUS.md](BUILD_STATUS.md) for the exact known/unknown state.

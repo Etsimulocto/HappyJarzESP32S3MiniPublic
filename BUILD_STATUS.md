@@ -2,7 +2,7 @@
 
 **Board:** ESP32-S3 SuperMini (SIMPLE profile, 4 MB flash)  
 **Firmware source:** 0.17.13  
-**Pi Mini app:** 1.9.2  
+**Pi Mini app:** 1.9.3  
 **Source reference:** `Etsimulocto/BloomCircuit` commit `7412f7ef0c5faf84310b7c7fe1612f29f6bb84ba`
 
 ## What is in this repository
@@ -14,6 +14,8 @@
 The app and firmware source are together here. You do not need to pull app code or firmware patches from another checkout.
 
 ## Verification
+
+- Mini app 1.9.3 fixes the USB plug watcher's `HELLO` line terminator, which prevented reliable identity detection and auto-launch.
 
 - The original v0.17.13 staging verifier passed while assembling this package.
 - Python syntax checks passed for the Mini app and game modules.

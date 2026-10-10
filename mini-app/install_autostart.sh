@@ -17,6 +17,4 @@ X-GNOME-Autostart-enabled=true
 EOF
 chmod 644 "$DESKTOP_FILE"
 printf 'Installed HAPPY JARZ autostart: %s\n' "$DESKTOP_FILE"
-printf 'The watcher starts at next login. For this session, restart it with:\n'
-printf '  pkill -f \'[h]appyjarz_plug_watch.py\' || true\n'
-printf '  /usr/bin/python3 "%s/happyjarz_plug_watch.py" >/dev/null 2>&1 &\n' "$APP_DIR"
+printf 'It starts at the next login. Start it now with /usr/bin/python3 "%s/happyjarz_plug_watch.py"\n' "$APP_DIR"

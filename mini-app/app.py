@@ -35,21 +35,23 @@ class HappyJarzApp(previous.HappyJarzApp):
         self._power_poll_started = False
         super().__init__()
         self.title(f"HAPPY JARZ Controller v{APP_VERSION}")
+        self._build_art_tab()
         self._log(f"HAPPY JARZ app v{APP_VERSION} • Fuel Gauge UI + OLED marquee art editor active")
 
-    def _build_display_tab(self, root):
-        super()._build_display_tab(root)
+    def _build_art_tab(self):
+        art_tab = ttk.Frame(self.notebook, padding=8)
+        self.notebook.insert(3, art_tab, text="ART")
 
-        outer, panel = self._card(root, 9)
-        outer.pack(fill="both", expand=True, pady=(8, 0))
+        outer, panel = self._card(art_tab, 9)
+        outer.pack(fill="both", expand=True)
 
         head = ttk.Frame(panel, style="Panel.TFrame")
         head.pack(fill="x")
-        ttk.Label(head, text="CUSTOM MARQUEE ART", style="Section.TLabel").pack(side="left")
-        ttk.Label(head, text="128 × 64 • 1,024 bytes per image", style="PanelMuted.TLabel").pack(side="right")
+        ttk.Label(head, text="ART FRAME MAKER", style="Section.TLabel").pack(side="left")
+        ttk.Label(head, text="128 × 64 • up to 2 frames • 50 pieces", style="PanelMuted.TLabel").pack(side="right")
         ttk.Label(
             panel,
-            text="Draw faces and symbols for the OLED here. Save the art library on the Pi; firmware upload support is still pending.",
+            text="Draw and preview OLED art, save it to the Pi library, then send the gallery to your Jar.",
             style="PanelMuted.TLabel",
             wraplength=820,
         ).pack(anchor="w", pady=(5, 8))

@@ -78,7 +78,16 @@ class JarSerial:
 
     def _scan_loop(self):
         while self.running:
-            if self.ser is None or not self                probe = serial.Serial(
+            if self.ser is None or not self.ser.is_open:
+                self._try_ports()
+            time.sleep(SCAN_SECONDS)
+
+    def _try_ports(self):
+        for port in list_ports.comports():
+            if not self.running or self.ser is not None:
+                return
+            try:
+                probe = serial.Serial(
                     port.device,
                     BAUD,
                     timeout=0.10,

@@ -41,7 +41,9 @@ static String hjChipId() {
 }
 
 static String hjSerialId() {
-  return "HJ-" + hjChipId().substring(6);
+  String serial = "HJ-";
+  serial += hjChipId();
+  return serial;
 }
 
 // -----------------------------

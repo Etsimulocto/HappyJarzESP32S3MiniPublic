@@ -5,7 +5,7 @@ This is the single source repository for the HAPPY JARZ ESP32-S3 SuperMini firmw
 ## Current source pair
 
 - Firmware: **0.18.0**
-- Pi Mini app: **1.10.2**
+- Pi Mini app: **1.10.4**
 - Board profile: **SIMPLE / ESP32-S3 SuperMini / 4 MB flash**
 
 The repository contains the firmware, Mini app, USB watcher, controller, and art tools. It does not depend on BloomCircuit or another checkout.
@@ -19,7 +19,9 @@ sudo apt-get install python3-tk python3-serial
 python3 mini-app/app.py
 ```
 
-The app includes LIGHTS + CONTROL, DISPLAY + INPUT, SERVICE, and a separate ART tab for the 128×64 monochrome art editor and frame maker. Create a still image or two-frame animation, save up to 50 pieces in the Pi library, then choose **Send gallery to Jar**. The board stores the gallery in SPIFFS and can rotate through it while disconnected from USB. Two-frame art animates on the OLED.
+The app includes LIGHTS + CONTROL, DISPLAY + INPUT, SERVICE, and a separate ART tab with a 128×64 monochrome editor and frame maker. Create a still picture or a two-frame animation, give it a name, and save it to **MY PICTURES**. Only saved pictures are included in a gallery transfer. MY PICTURES has a scrollbar for browsing the saved gallery.
+
+Choose **Send gallery to Jar** to transfer the saved pictures. The board stores them in its dedicated SPIFFS art filesystem, so it can display them with USB disconnected. To start cycling through the transferred pictures, open **DISPLAY + INPUT** and select **ART GALLERY** in the screensaver controls. Two-frame pictures animate on the OLED.
 
 The first gallery transfer asks before initializing the art filesystem. No partition table or erase-all setting is changed.
 

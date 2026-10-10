@@ -313,6 +313,11 @@ static const char *tzPosixFor(const String &name) {
   return "CST6CDT,M3.2.0/2,M11.1.0/2"; // safe project default
 }
 
+static void applyConfiguredTimezone() {
+  setenv("TZ", tzPosixFor(timezoneName), 1);
+  tzset();
+}
+
 static void loadSettings() {
   prefs.begin("happyjarz", true);
   brightnessPercent = min((uint8_t)100, prefs.getUChar("bright", (uint8_t)50));
@@ -1610,6 +1615,7 @@ static void manualClockClampDay() {
 }
 
 static void manualClockBeginEdit() {
+  applyConfiguredTimezone();
   struct tm t;
   if (getLocalTime(&t, 10) && t.tm_year + 1900 >= 2020) {
     manualClockMonth = t.tm_mon + 1;
@@ -1678,6 +1684,7 @@ static bool manualClockSave() {
   t.tm_min = manualClockMinute;
   t.tm_sec = 0;
   t.tm_isdst = -1;
+  applyConfiguredTimezone();
   time_t epoch = mktime(&t);
   if (epoch < 1700000000) return false;
   struct timeval tv;

@@ -19,7 +19,8 @@ The app and firmware source are together here. You do not need to pull app code 
 - The controller retries serial discovery while open and now requests exclusive access on POSIX, reducing conflicts with other USB watchers.
 - The plug watcher uses a process lock so duplicate HAPPY JARZ autostart entries do not create duplicate watchers.
 - The Pi serial reader shutdown race is handled without closing a newer connection from a stale reader.
-- Python syntax checks and all eight pixel-art/transfer-protocol tests passed for the art implementation. The latest watcher/controller changes still need a syntax check on the release candidate.
+- All eight pixel-art and transfer-protocol tests passed for the art implementation.
+- Python syntax checks passed for the updated watcher and controller; the autostart installer passed shell syntax and temporary-home smoke checks.
 - Arduino CLI is not installed in this workspace, so a fresh firmware compile has not been run.
 - No firmware upload or hardware gallery/autolaunch test has been run from this workspace.
 

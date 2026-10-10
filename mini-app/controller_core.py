@@ -95,6 +95,7 @@ class JarSerial:
                     write_timeout=0.5,
                     dsrdtr=False,
                     rtscts=False,
+                    exclusive=(os.name == "posix"),
                 )
                 # Older PySerial on Raspberry Pi rejects dtr/rts constructor kwargs.
                 # Set both control lines inactive while closed, before opening the port.
@@ -134,9 +135,20 @@ class JarSerial:
                 continue
 
     def _reader_loop(self):
-        while self.running and self.ser is not None and self.ser.is_open:
+        # Keep this reader tied to the connection it was created for.
+        with self.lock:
+            ser = self.ser
+
+        while self.running and ser is not None:
             try:
-                raw = self.ser.readline()
+                # Serialize reads with writes and close(). The short serial
+                # timeout keeps this lock hold brief and prevents pySerial's
+                # file descriptor from being cleared during readline().
+                with self.lock:
+                    if self.ser is not ser or not ser.is_open:
+                        break
+                    raw = ser.readline()
+
                 if not raw:
                     continue
                 line = raw.decode("utf-8", errors="replace").strip()
@@ -146,10 +158,14 @@ class JarSerial:
                     if line.startswith("HJ|ART|ACK|event=DATA|"):
                         continue
                     self._emit("line", line)
-            except (serial.SerialException, OSError) as exc:
-                self._emit("log", f"Serial connection lost: {exc}")
+            except (serial.SerialException, OSError, TypeError) as exc:
+                # POSIX pySerial can raise TypeError from os.read(fd=None)
+                # if a USB device disappears during a read.
+                if self.running:
+                    self._emit("log", f"Serial connection lost: {exc}")
                 break
-        self._disconnect_internal()
+
+        self._disconnect_internal(ser)
 
     @staticmethod
     def _safe_log_command(command: str) -> str:
@@ -160,20 +176,25 @@ class JarSerial:
 
     def send(self, command: str):
         command = command.strip()
+        failed_ser = None
         with self.lock:
-            if not self.ser or not self.ser.is_open:
+            ser = self.ser
+            if not ser or not ser.is_open:
                 self._emit("log", f"Not connected; command skipped: {self._safe_log_command(command)}")
                 return False
             try:
-                self.ser.write((command + "\n").encode("utf-8"))
-                self.ser.flush()
+                ser.write((command + "\n").encode("utf-8"))
+                ser.flush()
                 if not command.startswith("ART DATA "):
                     self._emit("tx", self._safe_log_command(command))
                 return True
-            except (serial.SerialException, OSError) as exc:
+            except (serial.SerialException, OSError, TypeError) as exc:
                 self._emit("log", f"Write failed: {exc}")
-                self._disconnect_internal()
-                return False
+                failed_ser = ser
+
+        # Disconnect outside the lock and only if this is still the same handle.
+        self._disconnect_internal(failed_ser)
+        return False
 
     def send_wait(self, command: str, timeout: float = 5.0) -> str:
         """Send one art-transfer command and wait for its device ACK."""

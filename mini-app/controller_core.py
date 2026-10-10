@@ -363,6 +363,7 @@ class HappyJarzApp(tk.Tk):
         self._build_header(root)
 
         notebook = ttk.Notebook(root)
+        self.notebook = notebook
         notebook.pack(fill="both", expand=True)
 
         control = ttk.Frame(notebook, padding=8)

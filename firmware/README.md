@@ -1,6 +1,6 @@
 # HAPPY JARZ Mini firmware
 
-- Firmware version: `0.18.2`
+- Firmware version: `0.18.3`
 - Target: ESP32-S3 SuperMini, SIMPLE profile, 4 MB flash
 - Sketch: `HappyJarzMini/HappyJarzMini.ino`
 - Additional Arduino source: `happyjarz_arcade.cpp`/`.h` and `happyjarz_art.cpp`/`.h`
@@ -14,6 +14,8 @@ Firmware 0.18.1 reports a stable chip-derived board ID instead of the shared `HJ
 
 Firmware 0.18.2 adds an on-board PROFILE menu. The six capacitive controls edit and save the owner's name and annual birthday directly to Preferences/NVS, open the manual date/time editor, and clear a profile with confirmation. If a birthday and valid clock are set, the OLED has a one-in-three chance to show the countdown at startup; a birthday-day boot shows the greeting. The clock can be set without a computer, but it needs Wi-Fi time sync or a manual reset after full power loss because this board has no battery-backed clock.
 
+Firmware 0.18.3 uses the existing accessory-rail detector to show the birthday countdown for five seconds on every successful OFF → ON restore of the OLED/lamp 3.3 V supply. It wakes software sleep, temporarily overlays game/screensaver/menu rendering, and then returns to the previous screen. A valid birthday and clock are required; if the clock is not set, the display waits for time sync. The random choice still applies to a full ESP32 startup, not to the accessory switch.
+
 Build from the repository root:
 
 ```bash
@@ -22,6 +24,6 @@ arduino-cli lib install U8g2
 arduino-cli compile --fqbn esp32:esp32:esp32s3:CDCOnBoot=cdc firmware/HappyJarzMini
 ```
 
-Firmware 0.18.2 has not yet been compiled with Arduino CLI or uploaded to a board. Treat successful compilation and post-upload profile editing/persistence, date/time entry, birthday countdown, gallery transfer, OLED animation, touch, lamp, and `HELLO`/identity checks as required before marking the release verified. Treat successful compilation and post-upload profile persistence, birthday behavior, gallery transfer, OLED animation, touch, lamp, and `HELLO`/identity checks as required before marking the release verified.
+Firmware 0.18.2 compiled successfully on the Architect's Pi (1,117,977 bytes of sketch space and 53,528 bytes of static RAM); the Architect reported reconnecting after the upload. Firmware 0.18.3 passed host-side resume-logic checks but still needs a clean Arduino CLI compile and board checks for repeated accessory OFF/ON countdowns, countdown expiry/return, birthday-day greeting, sleep wake and game-screen resume.
 
-The board responds to `HELLO` with an `HJ|IDENTITY|...` line when the application is running. Firmware 0.18.2 reports a unique `chip=` value and a serial derived from that ID.
+The board responds to `HELLO` with an `HJ|IDENTITY|...` line when the application is running. Firmware 0.18.3 reports a unique `chip=` value and a serial derived from that ID.

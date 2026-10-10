@@ -75,3 +75,7 @@ Follow the [compile and upload workflow](firmware/README.md#compile-and-upload-o
 **Keep USB connected and the accessory switch steady until the upload finishes and the app opens.** A blank OLED during flashing does not mean the update is finished. Check the exit marker, upload log and fresh `fw=0.18.4` identity.
 
 See [BUILD_STATUS.md](BUILD_STATUS.md) for the distinction between host tests, reported board results and remaining release checks.
+
+## Browser controller draft
+
+[HAPPY JARZ Web Studio](web-controller/README.md) is an initial USB browser frontend: profile/time sync, lights, live OLED, jar keys and a two-frame art editor. Firmware installation and automatic plug-in launching are not enabled. Protocol tests passed; browser and physical Pi/Windows checks remain pending. See its README for local preview, optional Pages deployment and the release-update design. The existing Mini app remains available.

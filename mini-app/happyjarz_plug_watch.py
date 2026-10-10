@@ -137,7 +137,7 @@ def identify_happy_jar(port_name: str) -> str | None:
         while time.monotonic() < deadline:
             now = time.monotonic()
             if now >= next_hello:
-                ser.write(b"HELLO\\n")
+                ser.write(b"HELLO\n")
                 ser.flush()
                 next_hello = now + HELLO_RETRY_SECONDS
             line = ser.readline().decode("utf-8", errors="replace").strip()

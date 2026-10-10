@@ -70,6 +70,7 @@ class JarSerial:
         self.port_name: str | None = None
         self.running = True
         self.lock = threading.Lock()
+        self.art_responses: queue.Queue[str] = queue.Queue()
         self.reader_thread: threading.Thread | None = None
         threading.Thread(target=self._scan_loop, daemon=True).start()
 
@@ -140,6 +141,10 @@ class JarSerial:
                     continue
                 line = raw.decode("utf-8", errors="replace").strip()
                 if line:
+                    if line.startswith("HJ|ART|ACK|") or line.startswith("HJ|ERR|"):
+                        self.art_responses.put(line)
+                    if line.startswith("HJ|ART|ACK|event=DATA|"):
+                        continue
                     self._emit("line", line)
             except (serial.SerialException, OSError) as exc:
                 self._emit("log", f"Serial connection lost: {exc}")
@@ -162,12 +167,34 @@ class JarSerial:
             try:
                 self.ser.write((command + "\n").encode("utf-8"))
                 self.ser.flush()
-                self._emit("tx", self._safe_log_command(command))
+                if not command.startswith("ART DATA "):
+                    self._emit("tx", self._safe_log_command(command))
                 return True
             except (serial.SerialException, OSError) as exc:
                 self._emit("log", f"Write failed: {exc}")
                 self._disconnect_internal()
                 return False
+
+    def send_wait(self, command: str, timeout: float = 5.0) -> str:
+        """Send one art-transfer command and wait for its device ACK."""
+        while True:
+            try:
+                self.art_responses.get_nowait()
+            except queue.Empty:
+                break
+        if not self.send(command):
+            raise RuntimeError("Jar is not connected")
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            try:
+                line = self.art_responses.get(timeout=max(0.05, deadline - time.monotonic()))
+            except queue.Empty:
+                break
+            if line.startswith("HJ|ERR|"):
+                raise RuntimeError(line)
+            if line.startswith("HJ|ART|ACK|"):
+                return line
+        raise TimeoutError(f"No Jar response for {command.split()[1] if len(command.split()) > 1 else command}")
 
     def _disconnect_internal(self):
         old_port = self.port_name
@@ -1287,7 +1314,7 @@ class HappyJarzApp(tk.Tk):
                     self.touch_vars[dest].set(fields[source])
             return
 
-        if not line.startswith("HJ|LED_FRAME|"):
+        if not line.startswith("HJ|LED_FRAME|") and not line.startswith("HJ|ART|ACK|event=DATA|"):
             self._log(f"RX  {line}")
         fields = self._parse_fields(line)
         if line.startswith("HJ|IDENTITY|"):

@@ -77,7 +77,7 @@ class HappyJarzApp(previous.HappyJarzApp):
         ttk.Label(info, text="Idle delay", style="PanelMuted.TLabel").grid(row=0, column=0, sticky="w")
         ttk.Label(info, text="10 seconds", style="Value.TLabel").grid(row=0, column=1, sticky="w", padx=(10, 24))
         ttk.Label(info, text="Modes", style="PanelMuted.TLabel").grid(row=0, column=2, sticky="w")
-        ttk.Label(info, text="SAYINGS • SPIRAL • TRIPPY • PARTICLES • BLOOM • BREATHE • GLITTER", style="Value.TLabel").grid(row=0, column=3, sticky="w", padx=(10, 0))
+        ttk.Label(info, text="SAYINGS • SPIRAL • TRIPPY • PARTICLES • BLOOM • BREATHE • GLITTER • ART", style="Value.TLabel").grid(row=0, column=3, sticky="w", padx=(10, 0))
 
         ttk.Label(
             display,
@@ -94,6 +94,8 @@ class HappyJarzApp(previous.HappyJarzApp):
         ttk.Button(row, text="BLOOM", command=lambda: self.link.send("SET SAVER MODE BLOOM")).pack(side="left")
         ttk.Button(row, text="BREATHE", command=lambda: self.link.send("SET SAVER MODE BREATHE")).pack(side="left", padx=5)
         ttk.Button(row, text="GLITTER", command=lambda: self.link.send("SET SAVER MODE GLITTER")).pack(side="left")
+        ttk.Button(row, text="ART GALLERY", style="Accent.TButton",
+                   command=lambda: self.link.send("SET SAVER MODE ART")).pack(side="left", padx=(5, 0))
         ttk.Button(row, text="NEW UNIVERSE (A)", style="Accent.TButton", command=lambda: self.link.send("SAVER RESEED")).pack(side="left", padx=(8, 5))
         ttk.Button(row, text="SPEED −", command=lambda: self.link.send("SAVER SPEED DOWN")).pack(side="left")
         ttk.Button(row, text="SPEED +", command=lambda: self.link.send("SAVER SPEED UP")).pack(side="left", padx=5)
@@ -102,7 +104,7 @@ class HappyJarzApp(previous.HappyJarzApp):
 
         ttk.Label(
             display,
-            text="PARTICLES: tiny gravity universe • BLOOM: opening/closing lotus • BREATHE: slow geometric fade illusion • GLITTER: falling mixed-shape sparkle field.",
+            text="ART GALLERY: rotates through up to 50 saved drawings; two-frame drawings animate on the Jar.",
             style="PanelMuted.TLabel",
         ).pack(anchor="w", pady=(7, 0))
 
@@ -233,6 +235,8 @@ class HappyJarzApp(previous.HappyJarzApp):
                 )
             elif mode in ("BLOOM", "BREATHE", "GLITTER"):
                 detail = f"speed {fields.get('visual_speed', '1')}/8"
+            elif mode == "ART":
+                detail = "rotating picture gallery"
             else:
                 detail = "marquee"
             if self.saver_state is not None:

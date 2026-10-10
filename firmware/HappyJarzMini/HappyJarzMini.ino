@@ -1,4 +1,4 @@
-// HAPPY JARZ ESP32-S3 SuperMini firmware v0.17.13
+// HAPPY JARZ ESP32-S3 SuperMini firmware v0.18.0
 // SIMPLE profile: six capacitive inputs, 128x64 OLED, four APA106 lamps,
 // local games/screensavers, and the HAPPY JARZ USB control protocol.
 //
@@ -24,6 +24,7 @@
 #include <Wire.h>
 #include <U8g2lib.h>
 #include "happyjarz_arcade.h"
+#include "happyjarz_art.h"
 #include <math.h>
 #include <time.h>
 #include <sys/time.h>
@@ -31,7 +32,7 @@
 
 static const char *HJ_SERIAL_ID = "HJ-001";
 static const char *HJ_HW_VERSION = "V1";
-static const char *HJ_FW_VERSION = "0.17.13";
+static const char *HJ_FW_VERSION = "0.18.0";
 
 // -----------------------------
 // Hardware map
@@ -1590,7 +1591,7 @@ static constexpr unsigned long HJ_SCREENSAVER_IDLE_MS = 30000UL;
 static unsigned long hjLastInteractionMs = 0;
 static bool hjScreensaverActive = false;
 static uint8_t hjScreensaverMode = 0;
-static constexpr uint8_t HJ_SCREENSAVER_COUNT = 7;
+static constexpr uint8_t HJ_SCREENSAVER_COUNT = 8;
 static unsigned long hjSaverLastFrameMs = 0;
 static int hjMarqueeX = 128;
 static uint8_t hjSayingIndex = 0;
@@ -1766,7 +1767,8 @@ static const char *hjSaverModeName() {
   if (hjScreensaverMode == 3) return "PARTICLES";
   if (hjScreensaverMode == 4) return "BLOOM";
   if (hjScreensaverMode == 5) return "BREATHE";
-  return "GLITTER";
+  if (hjScreensaverMode == 6) return "GLITTER";
+  return "ART";
 }
 
 static void hjSaverReseedCurrent() {
@@ -1781,6 +1783,8 @@ static void hjSaverPrepareCurrent() {
   if (hjScreensaverMode == 0) {
     hjPickNextSaying();
     hjMarqueeX = 128;
+  } else if (hjScreensaverMode == 7) {
+    hjArtEnterSaver();
   } else {
     hjSaverReseedCurrent();
   }
@@ -2619,6 +2623,7 @@ static void hjScreensaverEnter() {
   hjSaverLastFrameMs = 0;
   hjPickNextSaying();
   hjArtStep = 0;
+  if (hjScreensaverMode == 7) hjArtEnterSaver();
   oledDirty = true;
 }
 
@@ -2634,6 +2639,7 @@ static void hjScreensaverNext() {
   hjArtStep = 0;
   if (hjScreensaverMode == 3) hjReseedParticles();
   if (hjScreensaverMode >= 4) hjReseedVisualSaver();
+  if (hjScreensaverMode == 7) hjArtEnterSaver();
   oledDirty = true;
 }
 
@@ -2643,6 +2649,7 @@ static void hjScreensaverPrev() {
   hjArtStep = 0;
   if (hjScreensaverMode == 3) hjReseedParticles();
   if (hjScreensaverMode >= 4) hjReseedVisualSaver();
+  if (hjScreensaverMode == 7) hjArtEnterSaver();
   oledDirty = true;
 }
 
@@ -2768,7 +2775,8 @@ static void oledRenderScreensaver() {
     case 3: oledRenderSaverParticles(); break;
     case 4: oledRenderSaverBloom(); break;
     case 5: oledRenderSaverBreathe(); break;
-    default: oledRenderSaverGlitter(); break;
+    case 6: oledRenderSaverGlitter(); break;
+    default: hjArtRender(oled); break;
   }
 }
 
@@ -3723,6 +3731,7 @@ static bool parseHHMM(const String &s,uint8_t &h,uint8_t &m){
 
 static void handleCommand(String line) {
   line.trim(); if(!line.length())return;
+  if(hjArtHandleCommand(line)) return;
   if(line=="HELLO"){identity();return;}
   if(line=="PING"){Serial.println("HJ|PONG");return;}
   if(line=="GET STATUS"){Serial.println(statusLine());return;}
@@ -3898,7 +3907,8 @@ static void handleCommand(String line) {
     else if(v=="BLOOM") hjSaverSetMode(4,true);
     else if(v=="BREATHE") hjSaverSetMode(5,true);
     else if(v=="GLITTER") hjSaverSetMode(6,true);
-    else {err("saver mode must be SAYINGS SPIRAL TRIPPY PARTICLES BLOOM BREATHE or GLITTER");return;}
+    else if(v=="ART") hjSaverSetMode(7,true);
+    else {err("saver mode must be SAYINGS SPIRAL TRIPPY PARTICLES BLOOM BREATHE GLITTER or ART");return;}
     ack("SET SAVER MODE"); hjPrintSaverStatus(); return;
   }
   if(line=="SAVE"){persistSettings();ack("SAVE");return;}
@@ -3925,6 +3935,7 @@ void setup(){
   loadSettings();
   displayBrightness=100;
   hjLoadCustomSayings();
+  hjArtInit();
   oledInit();
   hjScreensaverTouch();
   if(!initApa106Rmt()) Serial.println("HJ|ERR|message=RMT init failed");

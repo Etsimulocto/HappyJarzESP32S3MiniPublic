@@ -8,6 +8,7 @@ import math
 import os
 import re
 import tempfile
+import threading
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
@@ -30,6 +31,26 @@ def pack_xbm(pixels: list[int] | tuple[int, ...]) -> bytes:
             if pixels[y * WIDTH + x]:
                 output[y * (WIDTH // 8) + (x >> 3)] |= 1 << (x & 7)
     return bytes(output)
+
+
+def gallery_transfer_commands(assets: list[dict]) -> list[str]:
+    """Build bounded newline protocol commands for a 50-piece device gallery."""
+    if len(assets) > 50:
+        raise ValueError("the Jar art gallery holds at most 50 pictures")
+    commands: list[str] = []
+    for slot, asset in enumerate(assets):
+        frames = asset.get("frames") or [asset["pixels"]]
+        frames = frames[:2]
+        payload = b"".join(pack_xbm(frame) for frame in frames)
+        commands.append(f"ART BEGIN {slot} {len(frames)}")
+        for offset in range(0, len(payload), 48):
+            commands.append(f"ART DATA {slot} {offset} {payload[offset:offset + 48].hex()}")
+        commands.append(f"ART END {slot}")
+    commands.append(f"ART TRIM {len(assets)}")
+    commands.append("ART COUNT")
+    if any(len(command) >= 192 for command in commands):
+        raise ValueError("an art transfer command exceeds the firmware line limit")
+    return commands
 
 
 def circle_points(center_x: int, center_y: int, radius: int) -> set[tuple[int, int]]:
@@ -129,9 +150,11 @@ def _line_points(a: tuple[int, int], b: tuple[int, int]) -> set[tuple[int, int]]
 class HappyJarzArtStudio(ttk.Frame):
     """A Tkinter pixel editor embedded beside Custom Marquee in DISPLAY + INPUT."""
 
-    def __init__(self, parent: tk.Misc):
+    def __init__(self, parent: tk.Misc, link=None):
         super().__init__(parent)
-        self.pixels = [0] * PIXELS
+        self.frames: list[list[int]] = [[0] * PIXELS]
+        self.frame_index = 0
+        self.link = link
         self.tool = "Pencil"
         self.draw_color = 1
         self.mirror = tk.BooleanVar(value=False)
@@ -139,6 +162,8 @@ class HappyJarzArtStudio(ttk.Frame):
         self.stamp_size = tk.IntVar(value=1)
         self.name_var = tk.StringVar(value="Happy Face")
         self.category_var = tk.StringVar(value="Faces")
+        self.animate_var = tk.BooleanVar(value=False)
+        self.frame_var = tk.StringVar(value="FRAME 1 / 1")
         self.status_var = tk.StringVar(value="128 × 64 • 1,024 bytes per image")
         self.history: list[list[int]] = []
         self.redo_history: list[list[int]] = []
@@ -149,6 +174,17 @@ class HappyJarzArtStudio(ttk.Frame):
         self._build_ui()
         self._load_library()
         self._render_all()
+        self._animate_preview()
+
+    @property
+    def pixels(self) -> list[int]:
+        return self.frames[self.frame_index]
+
+    @pixels.setter
+    def pixels(self, value: list[int]) -> None:
+        while len(self.frames) <= self.frame_index:
+            self.frames.append([0] * PIXELS)
+        self.frames[self.frame_index] = value
 
     def _build_ui(self) -> None:
         head = ttk.Frame(self)
@@ -166,6 +202,8 @@ class HappyJarzArtStudio(ttk.Frame):
         ttk.Button(meta, text="New", command=self.new_art).pack(side="left", padx=(6, 3))
         ttk.Button(meta, text="Save", style="Accent.TButton", command=self.save_art).pack(side="left", padx=3)
         ttk.Button(meta, text="Export U8g2 .h", command=self.export_header).pack(side="left", padx=3)
+        ttk.Button(meta, text="Send gallery to Jar", style="Accent.TButton",
+                   command=self.send_gallery).pack(side="left", padx=3)
         ttk.Button(meta, text="Undo", command=self.undo).pack(side="right", padx=(3, 0))
         ttk.Button(meta, text="Redo", command=self.redo).pack(side="right", padx=3)
 
@@ -188,6 +226,14 @@ class HappyJarzArtStudio(ttk.Frame):
         ttk.Button(tools, text="Black", command=lambda: self.set_color(1)).pack(side="left", padx=(3, 2))
         ttk.Button(tools, text="White", command=lambda: self.set_color(0)).pack(side="left", padx=2)
         ttk.Button(tools, text="Clear", command=self.clear).pack(side="right")
+
+        animation = ttk.Frame(self)
+        animation.pack(fill="x", pady=(0, 7))
+        ttk.Checkbutton(animation, text="2-frame animation", variable=self.animate_var,
+                        command=self._toggle_animation).pack(side="left")
+        ttk.Button(animation, text="Frame 1", command=lambda: self._switch_frame(0)).pack(side="left", padx=(10, 3))
+        ttk.Button(animation, text="Frame 2", command=lambda: self._switch_frame(1)).pack(side="left", padx=3)
+        ttk.Label(animation, textvariable=self.frame_var, style="PanelMuted.TLabel").pack(side="left", padx=8)
 
         body = ttk.Frame(self)
         body.pack(fill="both", expand=True)
@@ -225,6 +271,82 @@ class HappyJarzArtStudio(ttk.Frame):
 
         ttk.Label(self, text="Circle: drag from center to radius • Stamps place a filled little shape • Save keeps art on this Pi",
                   style="PanelMuted.TLabel").pack(anchor="w", pady=(6, 0))
+
+    def _toggle_animation(self) -> None:
+        if self.animate_var.get() and len(self.frames) < 2:
+            self.frames.append(self.frames[0].copy())
+        self._set_frame_label()
+
+    def _switch_frame(self, index: int) -> None:
+        if index == 1 and len(self.frames) < 2:
+            self.frames.append(self.frames[0].copy())
+        if index == 1:
+            self.animate_var.set(True)
+        self.frame_index = min(index, len(self.frames) - 1)
+        self._set_frame_label()
+        self._render_all()
+
+    def _set_frame_label(self) -> None:
+        count = 2 if self.animate_var.get() and len(self.frames) > 1 else 1
+        if self.frame_index >= count:
+            self.frame_index = 0
+        self.frame_var.set(f"FRAME {self.frame_index + 1} / {count}")
+
+    def _animate_preview(self) -> None:
+        if self.animate_var.get() and len(self.frames) > 1:
+            self.preview_frame = 1 - getattr(self, "preview_frame", 0)
+            image = self.frames[self.preview_frame]
+            self.preview.delete("all")
+            for i, value in enumerate(image):
+                if value:
+                    x, y = i % WIDTH, i // WIDTH
+                    self.preview.create_rectangle(x * 2, y * 2, x * 2 + 2, y * 2 + 2,
+                                                  fill="#151812", outline="")
+        else:
+            self.preview_frame = self.frame_index
+        self.after(400, self._animate_preview)
+
+    def send_gallery(self) -> None:
+        if self.link is None:
+            messagebox.showerror("Send gallery", "The controller link is unavailable.", parent=self)
+            return
+        if len(self.assets) > 50:
+            messagebox.showerror("Send gallery", "The Jar can hold up to 50 pictures.", parent=self)
+            return
+        try:
+            ready = self.link.send_wait("ART READY")
+        except Exception as exc:
+            messagebox.showerror("Send gallery", f"Could not reach the Jar:\n{exc}", parent=self)
+            return
+        if "|ready=0" in ready:
+            if not messagebox.askyesno(
+                "Prepare Jar art storage",
+                "The Jar’s art storage needs its first setup. This formats the art-storage area only. Continue?",
+                parent=self,
+            ):
+                return
+            try:
+                self.link.send_wait("ART FORMAT", timeout=20.0)
+            except Exception as exc:
+                messagebox.showerror("Send gallery", f"Could not prepare art storage:\n{exc}", parent=self)
+                return
+        threading.Thread(target=self._send_gallery_worker, daemon=True).start()
+
+    def _send_gallery_worker(self) -> None:
+        try:
+            items = self.assets[:50]
+            commands = gallery_transfer_commands(items)
+            for command in commands:
+                response = self.link.send_wait(command)
+                if command == "ART COUNT" and f"|count={len(items)}" not in response:
+                    raise RuntimeError(f"Board reports an unexpected gallery size: {response}")
+                if command.startswith("ART END "):
+                    sent = int(command.split()[2]) + 1
+                    percent = int(sent * 100 / max(1, len(items)))
+                    self.after(0, lambda p=percent: self.status_var.set(f"Sending art gallery • {p}%"))
+            self.after(0, lambda: self.status_var.set(f"Sent {len(items)} pictures to the Jar"))
+        except Exception as exc:
+            self.after(0, lambda error=str(exc): self.status_var.set(f"Gallery transfer stopped: {error}"))
 
     def set_tool(self, value: str) -> None:
         self.tool = value
@@ -264,7 +386,10 @@ class HappyJarzArtStudio(ttk.Frame):
 
     def new_art(self) -> None:
         self._push_undo()
-        self.pixels = [0] * PIXELS
+        self.frames = [[0] * PIXELS]
+        self.frame_index = 0
+        self.animate_var.set(False)
+        self._set_frame_label()
         self.name_var.set("Untitled")
         self.category_var.set("Art")
         self.asset_list.selection_clear(0, "end")
@@ -422,7 +547,18 @@ class HappyJarzArtStudio(ttk.Frame):
         category = item.get("category", "Art")
         if category not in CATEGORIES:
             category = "Art"
-        return {"name": str(item.get("name", "Untitled"))[:48], "category": category, "pixels": values}
+        raw_frames = item.get("frames")
+        frames = []
+        if isinstance(raw_frames, list):
+            for frame in raw_frames[:2]:
+                if isinstance(frame, list):
+                    clean = [1 if bool(v) else 0 for v in frame[:PIXELS]]
+                    clean.extend([0] * (PIXELS - len(clean)))
+                    frames.append(clean)
+        if not frames:
+            frames = [values]
+        return {"name": str(item.get("name", "Untitled"))[:48], "category": category,
+                "pixels": frames[0], "frames": frames}
 
     @staticmethod
     def _starter_face() -> dict:
@@ -456,6 +592,10 @@ class HappyJarzArtStudio(ttk.Frame):
         self.name_var.set(item["name"])
         self.category_var.set(item["category"])
         self.pixels = item["pixels"].copy()
+        self.frames = [frame.copy() for frame in item.get("frames", [item["pixels"]])[:2]]
+        self.frame_index = 0
+        self.animate_var.set(len(self.frames) > 1)
+        self._set_frame_label()
         self.history.clear()
         self.redo_history.clear()
         self._render_all()
@@ -466,15 +606,20 @@ class HappyJarzArtStudio(ttk.Frame):
         category = self.category_var.get() if self.category_var.get() in CATEGORIES else "Art"
         target = next((item for item in self.assets if item["name"].casefold() == name.casefold()), None)
         if target is None:
-            target = {"name": name, "category": category, "pixels": self.pixels.copy()}
+            if len(self.assets) >= 50:
+                messagebox.showerror("Save art", "Your Pi art gallery is full (50 pictures). Delete one before adding another.", parent=self)
+                return
+            saved_frames = [frame.copy() for frame in self.frames[:2]] if self.animate_var.get() else [self.pixels.copy()]
+            target = {"name": name, "category": category, "pixels": saved_frames[0], "frames": saved_frames}
             self.assets.append(target)
         else:
-            target.update(name=name, category=category, pixels=self.pixels.copy())
+            saved_frames = [frame.copy() for frame in self.frames[:2]] if self.animate_var.get() else [self.pixels.copy()]
+            target.update(name=name, category=category, pixels=saved_frames[0], frames=saved_frames)
         try:
             self.asset_path.parent.mkdir(parents=True, exist_ok=True)
             fd, temp_name = tempfile.mkstemp(prefix="happyjarz-art-", suffix=".json", dir=self.asset_path.parent)
             with os.fdopen(fd, "w", encoding="utf-8") as stream:
-                json.dump({"version": 1, "assets": self.assets}, stream, separators=(",", ":"))
+                json.dump(self._library_payload(), stream, separators=(",", ":"))
                 stream.write("\n")
             os.replace(temp_name, self.asset_path)
         except OSError as exc:
@@ -499,7 +644,17 @@ class HappyJarzArtStudio(ttk.Frame):
 
     def _write_library(self) -> None:
         self.asset_path.parent.mkdir(parents=True, exist_ok=True)
-        self.asset_path.write_text(json.dumps({"version": 1, "assets": self.assets}, separators=(",", ":")) + "\n", encoding="utf-8")
+        self.asset_path.write_text(json.dumps(self._library_payload(), separators=(",", ":")) + "\n", encoding="utf-8")
+
+    def _library_payload(self) -> dict:
+        return {
+            "version": 2,
+            "assets": [
+                {"name": item["name"], "category": item["category"],
+                 "frames": item.get("frames", [item["pixels"]])[:2]}
+                for item in self.assets[:50]
+            ],
+        }
 
     def export_header(self) -> None:
         name = self.name_var.get().strip() or "Happy Jarz Art"
@@ -530,5 +685,5 @@ class HappyJarzArtStudio(ttk.Frame):
         self.status_var.set(f"Exported {Path(path).name} • 1,024 image bytes")
 
 
-__all__ = ["HappyJarzArtStudio", "pack_xbm", "circle_points", "stamp_points"]
+__all__ = ["HappyJarzArtStudio", "pack_xbm", "gallery_transfer_commands", "circle_points", "stamp_points"]
 

@@ -54,7 +54,7 @@ class HappyJarzApp(previous.HappyJarzApp):
             wraplength=820,
         ).pack(anchor="w", pady=(5, 8))
 
-        self.art_studio = HappyJarzArtStudio(panel)
+        self.art_studio = HappyJarzArtStudio(panel, self.link)
         self.art_studio.pack(fill="both", expand=True)
 
     def _build_service_tab(self, root):

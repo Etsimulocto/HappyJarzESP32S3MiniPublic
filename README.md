@@ -1,33 +1,17 @@
 # HAPPY JARZ ESP32-S3 Mini Firmware
 
-This is the public, canonical repository for **released HAPPY JARZ ESP32-S3 firmware builds**.
+This is the public home for **HAPPY JARZ ESP32-S3 Mini firmware builds**. It is firmware only; the Raspberry Pi controller and other apps stay in their own repositories.
 
-It contains device firmware only. The Raspberry Pi controller, BloomPetz, BloomCircuit editor, and other applications belong in their own repositories.
+## Current status
 
-## Current build status
+The project hardware is the **ESP32-S3 SuperMini**. The known-good firmware reference is **v0.17.13**, tested on that Mini board. See [BUILD_STATUS.md](BUILD_STATUS.md) for the source location and the current boot-screen diagnostic status.
 
-See [BUILD_STATUS.md](BUILD_STATUS.md) before compiling or flashing. A version number alone does not mean a build is verified for every ESP32-S3 board revision.
-
-At the moment, the known-good firmware release **v0.17.13** was verified on the ESP32-S3 SuperMini prototype. The full-size ESP32-S3 N16R8 board migration is not yet verified. Do not flash the SuperMini build onto the N16R8 board based on the shared chip name.
+This repository is being kept to one clean, reproducible firmware build at a time. It does not yet contain the v0.17.13 sketch: that build currently lives in BloomCircuit as a base sketch plus a staging pipeline. We will move a self-contained, verified Mini build here before calling it the repository's current release.
 
 ## Release rule
 
-The default branch should contain one current, self-contained firmware build at a time. A release must include:
+Each release must include one compile-ready sketch, its exact firmware version, the ESP32-S3 Mini board settings, required libraries, reproducible build steps, and test notes. The default branch is for the current clean build; older releases belong in Git tags/releases. Pi applications and unverified firmware experiments do not belong here.
 
-- one compile-ready sketch and its exact version
-- the exact ESP32-S3 board and Arduino build settings
-- required libraries and a repeatable build command
-- compile/upload result and board test notes
-- a recovery procedure if startup fails
+## Flashing
 
-Older releases should remain available as Git tags/releases. Do not put Pi applications, patch-injection pipelines, alternate board builds, or unverified experiments in the current release folder.
-
-## Before flashing
-
-1. Identify the physical board (SuperMini or full-size N16R8).
-2. Read [BUILD_STATUS.md](BUILD_STATUS.md) and confirm the firmware target matches.
-3. Stop serial watchers and confirm the selected port belongs to this device.
-4. Compile and verify first; flash only the matching, tested build.
-5. Record the firmware identity reported by the device after reboot.
-
-If the board is stuck at a boot screen, pause flashing and diagnose the USB/serial output and exact board first.
+Do not flash based on a version number alone. Confirm the selected build is for the ESP32-S3 Mini, stop serial watchers, confirm the USB port, compile and verify, then upload. If the device is stuck on its boot screen, capture startup serial output before changing its firmware.

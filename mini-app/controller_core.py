@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""HAPPY JARZ Controller v0.3.0 — BloomCore setup, control, and service UI.
+"""HAPPY JARZ Mini Controller v1.9.1 — BloomCore setup, control, and service UI.
 
 Known-good v0.2 light/touch commands are preserved. New Wi-Fi/time/alarm/timer/
 display controls are forward-compatible with the planned firmware protocol in

@@ -2,7 +2,7 @@
 
 **Board:** ESP32-S3 SuperMini (SIMPLE profile, 4 MB flash)  
 **Firmware source:** 0.18.0 (art gallery added; compile/device check pending)  
-**Pi Mini app:** 1.10.1  
+**Pi Mini app:** 1.10.2  
 **Source of truth:** `Etsimulocto/HappyJarzESP32S3MiniPublic`
 
 ## What is in this repository
@@ -15,7 +15,7 @@ The app and firmware source are together here. You do not need to pull app code 
 
 ## Verification
 
-- The two-frame art editor, gallery transfer, 50-slot storage, and OLED playback are implemented.
+- The two-frame art editor is in its own top-level ART tab; gallery transfer, 50-slot storage, and OLED playback are implemented.
 - The controller retries serial discovery while open and now requests exclusive access on POSIX, reducing conflicts with other USB watchers.
 - The plug watcher uses a process lock so duplicate HAPPY JARZ autostart entries do not create duplicate watchers.
 - The Pi serial reader shutdown race is handled without closing a newer connection from a stale reader.

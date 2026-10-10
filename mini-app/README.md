@@ -1,6 +1,6 @@
 # HAPPY JARZ Pi Mini app
 
-Current app version: `1.9.2` (see `VERSION`).
+Current app version: `1.9.3` (see `VERSION`).
 
 Launch the controller UI:
 
@@ -8,7 +8,9 @@ Launch the controller UI:
 python3 app.py
 ```
 
-Launch the optional USB plug watcher:
+The USB plug watcher sends the board a newline-terminated `HELLO` and opens this controller after the HAPPY JARZ identity reply.
+
+Launch the USB plug watcher:
 
 ```bash
 python3 happyjarz_plug_watch.py

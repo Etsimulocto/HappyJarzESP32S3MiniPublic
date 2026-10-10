@@ -103,7 +103,7 @@ class JarSerial:
                 probe.rts = False
                 probe.port = port.device
                 probe.open()
-                time.sleep(0.10)
+                time.sleep(1.50)
                 probe.reset_input_buffer()
                 deadline = time.monotonic() + HANDSHAKE_TIMEOUT
                 next_hello = 0.0

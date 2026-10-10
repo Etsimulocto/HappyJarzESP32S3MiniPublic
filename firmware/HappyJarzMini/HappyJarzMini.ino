@@ -1,4 +1,4 @@
-// HAPPY JARZ ESP32-S3 SuperMini firmware v0.18.0
+// HAPPY JARZ ESP32-S3 SuperMini firmware v0.18.1
 // SIMPLE profile: six capacitive inputs, 128x64 OLED, four APA106 lamps,
 // local games/screensavers, and the HAPPY JARZ USB control protocol.
 //
@@ -30,9 +30,19 @@
 #include <sys/time.h>
 #include "esp32-hal-rmt.h"
 
-static const char *HJ_SERIAL_ID = "HJ-001";
 static const char *HJ_HW_VERSION = "V1";
-static const char *HJ_FW_VERSION = "0.18.0";
+static const char *HJ_FW_VERSION = "0.18.1";
+
+static String hjChipId() {
+  char id[13];
+  uint64_t mac = ESP.getEfuseMac() & 0xFFFFFFFFFFFFULL;
+  snprintf(id, sizeof(id), "%012llX", (unsigned long long)mac);
+  return String(id);
+}
+
+static String hjSerialId() {
+  return "HJ-" + hjChipId().substring(6);
+}
 
 // -----------------------------
 // Hardware map
@@ -282,6 +292,12 @@ static unsigned long timerStartedMs = 0;
 static uint8_t displayBrightness = 100;
 static String screensaver = "CLOCK";
 static uint16_t screensaverDelayMin = 5;
+static String ownerName;
+static String ownerBirthday = "--";
+static time_t hjBirthdayCacheMinute = (time_t)-1;
+static bool hjBirthdayCacheValue = false;
+static bool hjBirthdayToday();
+
 
 static const char *tzPosixFor(const String &name) {
   if (name == "America/New_York") return "EST5EDT,M3.2.0/2,M11.1.0/2";
@@ -310,6 +326,8 @@ static void loadSettings() {
   displayBrightness = prefs.getUChar("disp_bri", 100);
   screensaver = prefs.getString("screensaver", "CLOCK");
   screensaverDelayMin = prefs.getUShort("ss_delay", 5);
+  ownerName = prefs.getString("owner_name", "");
+  ownerBirthday = prefs.getString("owner_bday", "--");
   inputMode = "JAR";
   prefs.end();
 }
@@ -331,6 +349,8 @@ static void persistSettings() {
   prefs.putUChar("disp_bri", displayBrightness);
   prefs.putString("screensaver", screensaver);
   prefs.putUShort("ss_delay", screensaverDelayMin);
+  prefs.putString("owner_name", ownerName);
+  prefs.putString("owner_bday", ownerBirthday);
   prefs.end();
 }
 
@@ -605,6 +625,21 @@ static bool hjServiceBankPattern(unsigned long now, uint8_t bri) {
 static void servicePattern() {
   if (hjSleepActive) return;
   if (hjAccessoryPaused) return;
+  if (hjBirthdayToday()) {
+    unsigned long now = millis();
+    if (now - patternLastMs < 650UL) return;
+    patternLastMs = now;
+    uint8_t bri = safeBrightness(brightnessPercent);
+    Rgb birthdayFrame[LED_COUNT] = {
+      wheel((uint8_t)(patternStep * 11U)),
+      wheel((uint8_t)(patternStep * 11U + 64U)),
+      wheel((uint8_t)(patternStep * 11U + 128U)),
+      wheel((uint8_t)(patternStep * 11U + 192U))
+    };
+    writeFrame(birthdayFrame, bri);
+    patternStep++;
+    return;
+  }
   // HAPPYJARZ_FOUR_LAMP_PATTERN_ENGINE_V2
   if (patternName == "SOLID") return;
   if (patternName == "OFF") { allOff(); return; }
@@ -1189,6 +1224,37 @@ static void diagnoseWifiFailure() {
 static bool clockSynced() {
   time_t now = time(nullptr);
   return now > 1700000000;
+}
+
+static bool hjValidBirthday(const String &value) {
+  if (value.length() != 5 || value.charAt(2) != '-') return false;
+  int month = value.substring(0, 2).toInt();
+  int day = value.substring(3, 5).toInt();
+  static const uint8_t daysInMonth[] = {31,29,31,30,31,30,31,31,30,31,30,31};
+  return month >= 1 && month <= 12 && day >= 1 && day <= daysInMonth[month - 1];
+}
+
+static bool hjBirthdayToday() {
+  if (!ownerName.length() || !hjValidBirthday(ownerBirthday) || !clockSynced()) return false;
+  time_t now = time(nullptr);
+  time_t minute = now / 60;
+  if (minute == hjBirthdayCacheMinute) return hjBirthdayCacheValue;
+  hjBirthdayCacheMinute = minute;
+  struct tm local;
+  if (!getLocalTime(&local, 0)) {
+    hjBirthdayCacheValue = false;
+    return false;
+  }
+  char today[6];
+  snprintf(today, sizeof(today), "%02d-%02d", local.tm_mon + 1, local.tm_mday);
+  hjBirthdayCacheValue = ownerBirthday == String(today);
+  if (!hjBirthdayCacheValue && ownerBirthday == "02-29" &&
+      local.tm_mon == 2 && local.tm_mday == 1) {
+    int year = local.tm_year + 1900;
+    bool leap = (year % 4 == 0) && ((year % 100 != 0) || (year % 400 == 0));
+    hjBirthdayCacheValue = !leap;
+  }
+  return hjBirthdayCacheValue;
 }
 
 static void printWifiStatus() {
@@ -2767,7 +2833,13 @@ static void oledRenderSaverTrippy() {
   }
 }
 
+static void oledRenderBirthday();
+
 static void oledRenderScreensaver() {
+  if (hjBirthdayToday()) {
+    oledRenderBirthday();
+    return;
+  }
   switch (hjScreensaverMode) {
     case 0: oledRenderSaverSayings(); break;
     case 1: oledRenderSaverSpiral(); break;
@@ -2792,6 +2864,14 @@ static void oledCentered(uint8_t y, const String &text) {
   int x = (128 - width) / 2;
   if (x < 0) x = 0;
   oled->drawUTF8(x, y, text.c_str());
+}
+
+static void oledRenderBirthday() {
+  if (!oled) return;
+  oled->setFont(u8g2_font_6x12_tr);
+  oledCentered(17, "HAPPY BIRTHDAY!");
+  oledCentered(37, ownerName);
+  oledCentered(57, "TODAY IS YOUR DAY");
 }
 
 static String compactRgb(const Rgb &c) {
@@ -3318,7 +3398,7 @@ static void oledRenderInfo() {
 
 static void oledRenderSystem() {
   oledCentered(13, "SYSTEM");
-  oledCentered(29, String(HJ_SERIAL_ID) + "  FW " + HJ_FW_VERSION);
+  oledCentered(29, hjSerialId() + "  FW " + HJ_FW_VERSION);
   oledCentered(45, WiFi.status()==WL_CONNECTED ? "WIFI CONNECTED" : "WIFI OFFLINE");
   oledCentered(61, timezoneName);
 }
@@ -3704,7 +3784,18 @@ static unsigned long lastTouchCompatMs = 0;
 
 static void ack(const String &name){ Serial.print("HJ|ACK|command="); Serial.println(name); }
 static void err(const String &msg){ Serial.print("HJ|ERR|message="); Serial.println(msg); }
-static void identity(){ Serial.printf("HJ|IDENTITY|serial=%s|hw=%s|fw=%s\n",HJ_SERIAL_ID,HJ_HW_VERSION,HJ_FW_VERSION); }
+static void printProfile() {
+  Serial.print("HJ|PROFILE|chip="); Serial.print(hjChipId());
+  Serial.print("|owner="); Serial.print(ownerName);
+  Serial.print("|birthday="); Serial.println(ownerBirthday);
+}
+static void identity() {
+  String chip = hjChipId();
+  Serial.print("HJ|IDENTITY|serial="); Serial.print(hjSerialId());
+  Serial.print("|chip="); Serial.print(chip);
+  Serial.print("|hw="); Serial.print(HJ_HW_VERSION);
+  Serial.print("|fw="); Serial.println(HJ_FW_VERSION);
+}
 
 static String statusLine(){
   String s="HJ|STATUS|brightness="+String(brightnessPercent)+"|pattern="+patternName;
@@ -3734,6 +3825,44 @@ static void handleCommand(String line) {
   if(hjArtHandleCommand(line)) return;
   if(line=="HELLO"){identity();return;}
   if(line=="PING"){Serial.println("HJ|PONG");return;}
+  if(line=="GET PROFILE"){printProfile();return;}
+  if(line=="CLEAR PROFILE"){
+    ownerName="";
+    ownerBirthday="--";
+    hjBirthdayCacheMinute=(time_t)-1;
+    prefs.begin("happyjarz", false);
+    prefs.remove("owner_name");
+    prefs.remove("owner_bday");
+    prefs.end();
+    ack("CLEAR PROFILE");
+    printProfile();
+    return;
+  }
+  if(line.startsWith("SET PROFILE ")){
+    String payload=line.substring(12);
+    int split=payload.indexOf(' ');
+    if(split<0){err("profile format is SET PROFILE MM-DD name");return;}
+    String birthday=payload.substring(0,split);
+    String name=payload.substring(split+1);
+    birthday.trim(); name.trim();
+    if(birthday!="--" && !hjValidBirthday(birthday)){err("birthday must be MM-DD or --");return;}
+    for(size_t i=0;i<name.length();++i){
+      char c=name.charAt(i);
+      if(c=='|' || c=='\\r' || c=='\\n') name.setCharAt(i,'/');
+    }
+    if(name.length()>32) name=name.substring(0,32);
+    if(!name.length()){err("owner name is required");return;}
+    ownerName=name;
+    ownerBirthday=birthday;
+    hjBirthdayCacheMinute=(time_t)-1;
+    prefs.begin("happyjarz", false);
+    prefs.putString("owner_name", ownerName);
+    prefs.putString("owner_bday", ownerBirthday);
+    prefs.end();
+    ack("SET PROFILE");
+    printProfile();
+    return;
+  }
   if(line=="GET STATUS"){Serial.println(statusLine());return;}
   if(line=="GET CAPS"){hjPrintCaps();return;}
   if(line=="GET LED FRAME"){hjEmitLedFrameNow();return;}

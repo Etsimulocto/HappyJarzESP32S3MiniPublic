@@ -153,7 +153,9 @@ class HappyJarzApp(previous.HappyJarzApp):
 
         super()._handle_line(line)
         if line.startswith("HJ|IDENTITY|"):
-            self.after(250, lambda: self.link.send("GET POWER"))
+            if "power" not in self._identity_refreshes:
+                self._identity_refreshes.add("power")
+                self.after(250, lambda: self.link.send("GET POWER"))
             if not self._power_poll_started:
                 self._power_poll_started = True
                 self.after(5000, self._poll_power)

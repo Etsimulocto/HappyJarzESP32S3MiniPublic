@@ -29,6 +29,7 @@
 #include <time.h>
 #include <sys/time.h>
 #include "esp32-hal-rmt.h"
+#include "happyjarz_led_types.h"
 
 static const char *HJ_HW_VERSION = "V1";
 static const char *HJ_FW_VERSION = "0.18.1";
@@ -56,13 +57,11 @@ static constexpr uint8_t INPUT_UP_PIN = 4;
 static constexpr uint8_t INPUT_DOWN_PIN = 5;
 static constexpr uint8_t INPUT_LEFT_PIN = 9;
 static constexpr uint8_t INPUT_RIGHT_PIN = 10;
-static constexpr uint8_t LED_COUNT = 4;
 static constexpr size_t INPUT_COUNT = 6;
 
 // -----------------------------
 // LED layer — do not casually change
 // -----------------------------
-struct Rgb { uint8_t r, g, b; };
 static Rgb ledColor[LED_COUNT] = {{32,0,64},{0,32,64},{32,0,64},{0,32,64}};
 static uint8_t brightnessPercent = 75;
 static String patternName = "SOLID";

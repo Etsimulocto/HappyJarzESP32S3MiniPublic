@@ -5,7 +5,7 @@ This repository is the single source home for the HAPPY JARZ **ESP32-S3 SuperMin
 ## Current source pair
 
 - Firmware: **0.17.13**
-- Pi Mini app: **1.9.2**
+- Pi Mini app: **1.9.3**
 - Board profile: **SIMPLE / ESP32-S3 SuperMini / 4 MB flash**
 - Source import: BloomCircuit commit `7412f7ef0c5faf84310b7c7fe1612f29f6bb84ba`
 
@@ -28,7 +28,7 @@ To run the USB plug watcher instead:
 python3 mini-app/happyjarz_plug_watch.py
 ```
 
-The watcher launches the app only after a HAPPY JARZ `HELLO` identity handshake.
+The watcher launches the app only after a HAPPY JARZ `HELLO` identity handshake. Mini app 1.9.3 fixes the watcher command terminator so the board receives the complete line.
 
 ## Compile the Mini firmware
 

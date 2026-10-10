@@ -1,6 +1,6 @@
 # HAPPY JARZ Pi Mini app
 
-Current app version: `1.9.0` (see `VERSION`).
+Current app version: `1.9.1` (see `VERSION`).
 
 Launch the controller UI:
 

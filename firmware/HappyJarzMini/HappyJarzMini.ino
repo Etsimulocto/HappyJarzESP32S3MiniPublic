@@ -3211,7 +3211,7 @@ static void oledRenderProfile() {
     String prefix = profileEditName.substring(0, profileEditChar);
     int charX = nameX + oled->getUTF8Width(prefix.c_str());
     String selected = profileEditName.substring(profileEditChar, profileEditChar + 1);
-    int charWidth = max(4, oled->getUTF8Width(selected.c_str()));
+    int charWidth = max(4, (int)oled->getUTF8Width(selected.c_str()));
     oled->drawFrame(charX - 1, 17, charWidth + 2, 15);
     oled->drawStr(nameX, 28, profileEditName.c_str());
     oled->setFont(u8g2_font_5x8_tf);
@@ -3231,7 +3231,7 @@ static void oledRenderProfile() {
     String digit = profileEditBirthday.substring(pos, pos + 1);
     int x = (128 - oled->getUTF8Width(profileEditBirthday.c_str())) / 2 +
             oled->getUTF8Width(prefix.c_str());
-    oled->drawFrame(x - 1, 20, max(4, oled->getUTF8Width(digit.c_str())) + 2, 17);
+    oled->drawFrame(x - 1, 20, max(4, (int)oled->getUTF8Width(digit.c_str())) + 2, 17);
     oled->setFont(u8g2_font_5x8_tf);
     oledCentered(46, "UP/DN: DIGIT");
     oledCentered(54, "LT/RT: MOVE");

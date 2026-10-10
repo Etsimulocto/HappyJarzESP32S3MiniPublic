@@ -114,34 +114,41 @@ def port_generation(port_name: str):
 
 
 def identify_happy_jar(port_name: str) -> str | None:
+    ser = None
     try:
-        with serial.Serial(
-            port_name,
-            BAUD,
+        ser = serial.Serial(
+            port=None,
+            baudrate=BAUD,
             timeout=PROBE_TIMEOUT,
             write_timeout=0.5,
             dsrdtr=False,
             rtscts=False,
-            dtr=False,
-            rts=False,
-        ) as ser:
-            time.sleep(BOOT_SETTLE_SECONDS)
-            ser.reset_input_buffer()
-            deadline = time.monotonic() + HANDSHAKE_SECONDS
-            next_hello = 0.0
-            while time.monotonic() < deadline:
-                now = time.monotonic()
-                if now >= next_hello:
-                    ser.write(b"HELLO\n")
-                    ser.flush()
-                    next_hello = now + HELLO_RETRY_SECONDS
-                line = ser.readline().decode("utf-8", errors="replace").strip()
-                if line.startswith("HJ|IDENTITY|"):
-                    return line
+        )
+        # Older PySerial on Raspberry Pi rejects dtr/rts constructor kwargs.
+        # Set both control lines inactive while closed, before opening the port.
+        ser.dtr = False
+        ser.rts = False
+        ser.port = port_name
+        ser.open()
+        time.sleep(BOOT_SETTLE_SECONDS)
+        ser.reset_input_buffer()
+        deadline = time.monotonic() + HANDSHAKE_SECONDS
+        next_hello = 0.0
+        while time.monotonic() < deadline:
+            now = time.monotonic()
+            if now >= next_hello:
+                ser.write(b"HELLO\\n")
+                ser.flush()
+                next_hello = now + HELLO_RETRY_SECONDS
+            line = ser.readline().decode("utf-8", errors="replace").strip()
+            if line.startswith("HJ|IDENTITY|"):
+                return line
     except (serial.SerialException, OSError):
         return None
+    finally:
+        if ser is not None:
+            ser.close()
     return None
-
 
 def launch_controller() -> subprocess.Popen:
     python = sys.executable

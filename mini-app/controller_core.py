@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""HAPPY JARZ Mini Controller v1.9.1 — BloomCore setup, control, and service UI.
+"""HAPPY JARZ Mini Controller v1.9.2 — BloomCore setup, control, and service UI.
 
 Known-good v0.2 light/touch commands are preserved. New Wi-Fi/time/alarm/timer/
 display controls are forward-compatible with the planned firmware protocol in
@@ -88,15 +88,19 @@ class JarSerial:
                 return
             try:
                 probe = serial.Serial(
-                    port.device,
-                    BAUD,
+                    port=None,
+                    baudrate=BAUD,
                     timeout=0.10,
                     write_timeout=0.5,
                     dsrdtr=False,
                     rtscts=False,
-                    dtr=False,
-                    rts=False,
                 )
+                # Older PySerial on Raspberry Pi rejects dtr/rts constructor kwargs.
+                # Set both control lines inactive while closed, before opening the port.
+                probe.dtr = False
+                probe.rts = False
+                probe.port = port.device
+                probe.open()
                 time.sleep(0.10)
                 probe.reset_input_buffer()
                 deadline = time.monotonic() + HANDSHAKE_TIMEOUT

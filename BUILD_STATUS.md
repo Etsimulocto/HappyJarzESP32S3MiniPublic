@@ -43,3 +43,12 @@ This update does not change the partition table or erase-flash setting. The gall
 ## Release gate
 
 Mark a firmware release verified only after a clean compile with the documented FQBN, a successful upload to the ESP32-S3 SuperMini, and checks for unique serial/chip identity, on-board profile editing and persistence across power cycles, manual/Wi-Fi time setting, randomized startup countdown, repeated accessory-switch countdown with return to the previous screen, birthday greeting/lights, A-to-open present, scene mixing with art, user light override and midnight restoration, OLED, touch controls, lamps, a 50-slot transfer, two-frame playback, and plug-in autolaunch.
+
+## Web Studio draft 0.2
+
+- Browser frontend includes LIGHTS + CONTROL, WIFI + CLOCK, DISPLAY + INPUT, ART, PROFILE, SERVICE and UPDATES panels; BLOOPETZ and DND panels are placeholders for future app/board work.
+- Service provides timestamped telemetry, ping/RGB/touch routines, live touch readings, user observations and downloadable reports/logs. Firmware routine responses are separate from physical pass/fail observations.
+- Local diagnostics capture serial TX/RX, request/device/USB errors, boot output, JS/unhandled/resource errors, console warnings and release fetch failures. Bounded history can persist across reloads; storage failures fall back to memory and are displayed. Known private fields/pixel payloads are redacted before persistence/export. Reports include board identity, browser/locale/timezone/USB context, readouts, test timings and user notes. Nothing is uploaded automatically.
+- Six protocol/diagnostics tests passed, JavaScript syntax checks passed, and static UI validation found all nine tabs with no duplicate or missing wired controls. Browser smoke tests were extended for Service tests/report exports but remain unexecuted due to the unavailable Chromium download in this environment. Physical Pi/Windows USB verification remains pending; responsive layout does not establish phone/tablet USB support.
+- Corrected the initial web draft's POSIX timezone selections: firmware 0.18.4 expects its supported IANA identifiers and otherwise falls back to US Central. UI now offers only supported US regions and UTC. Broader international timezone mapping remains future firmware work.
+- No firmware/partition change, released binary, enabled flasher or deployed Pages site accompanies this draft.

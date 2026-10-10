@@ -23,6 +23,19 @@ try{
     else if(command==='GET PROFILE')emit('HJ|PROFILE|owner=Quarter|birthday=08-25');
     else if(command==='GET STATUS')emit('HJ|STATUS|brightness=75|pattern=SOLID|led1=32,0,64|led2=0,32,64|led3=32,0,64|led4=0,32,64');
     else if(command==='GET POWER')emit('HJ|POWER|sensor=OK|percent=55|voltage=3.8');
+    else if(command==='GET TIME STATUS')emit('HJ|TIME|synced=1|timezone=America/Chicago|local=2026-10-10T18:00:00');
+    else if(command==='GET CAPS')emit('HJ|CAPS|profile=SIMPLE|leds=4');
+    else if(command==='GET WIFI STATUS')emit('HJ|WIFI|state=CONNECTED|ssid=PrivateNetwork|ip=192.168.1.5|rssi=-50');
+    else if(command==='GET ALARM')emit('HJ|ALARM|enabled=0|time=07:30');
+    else if(command==='GET TIMER')emit('HJ|TIMER|enabled=0|remaining=0');
+    else if(command==='GET DISPLAY')emit('HJ|DISPLAY|brightness=100');
+    else if(command==='GET INPUT')emit('HJ|INPUT|up=100|down=105|left=101|right=102|a=104|b=106');
+    else if(command==='GET SAVER STATUS')emit('HJ|SAVER|active=0|mode=ART');
+    else if(command==='GET LED FRAME')emit('HJ|LED_FRAME|led1=32,0,64');
+    else if(command==='GET OLED')emit('HJ|OLED|seq=2|codec=b64v1|bytes=1024|data='+btoa(String.fromCharCode(...new Uint8Array(1024))));
+    else if(command==='PING')emit('HJ|PONG');
+    else if(command==='TEST RGB')emit('HJ|TEST|rgb=PASS');
+    else if(command==='TEST TOUCH'){emit('HJ|TOUCH_CAL|up_base=100|up_thr=120');emit('HJ|TEST|input=PASS');}
     else if(command==='ART READY')emit('HJ|ART|ACK|event=READY|ready='+(window.storageReady?1:0));
     else if(command.startsWith('ART BEGIN ')){window.offset=0;emit('HJ|ART|ACK|event=BEGIN|slot='+command.split(' ')[2]);}
     else if(command.startsWith('ART DATA ')){const [, ,slot,offset,hex]=command.split(' ');if(Number(offset)!==window.offset || hex.length>96)emit('HJ|ERR|message=BAD_DATA');else{window.offset+=hex.length/2;emit(`HJ|ART|ACK|event=DATA|slot=${slot}|offset=${window.offset}`);}}
@@ -46,11 +59,18 @@ try{
  await page.evaluate(()=>window.storageReady=false);await page.locator('#upload-art').click();await page.locator('#message').filter({hasText:'Art storage is unavailable'}).waitFor();
  assert.equal(await page.locator('#upload-art').isDisabled(),false);
  assert.ok(!(await page.evaluate(()=>window.sent)).includes('ART FORMAT'));
+ await page.locator('[data-tab=service]').click();await page.locator('#refresh-service').click();await page.locator('#message').filter({hasText:'Readouts refreshed.'}).waitFor();
+ await page.locator('#service-ping').click();await page.locator('#service-tests').filter({hasText:'Ping: response received'}).waitFor();
+ await page.locator('#service-rgb').click();await page.locator('#service-tests').filter({hasText:'RGB routine: response received'}).waitFor();
+ await page.evaluate(()=>console.error('HJ|ERR|message=Test failure|password=supersecret'));
+ await page.locator('#support-notes').fill('Screen blank after switch');
+ const downloadPromise=page.waitForEvent('download');await page.locator('#download-report').click();const download=await downloadPromise;const report=JSON.parse(await readFile(await download.path(),'utf8'));
+ assert.equal(report.userNotes,'Screen blank after switch');assert.equal(report.identity.serial,'HJ-TEST');assert.ok(!JSON.stringify(report).includes('supersecret'));assert.ok(!JSON.stringify(report).includes('PrivateNetwork'));assert.ok(report.entries.some(e=>e.kind==='CONSOLE' && e.level==='error'));
  await page.evaluate(()=>window.unplug());await page.locator('#connection').filter({hasText:'Jar disconnected'}).waitFor();await page.waitForFunction(()=>window.closeCount===1);
  await page.locator('#connect').click();await page.locator('#message').filter({hasText:'Your jar is ready'}).waitFor();await page.locator('#disconnect').click();await page.waitForFunction(()=>window.closeCount===2);
  await page.locator('[data-tab=home]').click();await page.screenshot({path:'/tmp/happyjarz-web-desktop.png',fullPage:true});
  await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await page.screenshot({path:'/tmp/happyjarz-web-mobile.png',fullPage:true});
- assert.deepEqual(errors,[]);console.log('Browser smoke passed: connect, OLED, profile, colors, ACK-gated art, storage rejection, unplug/reconnect, mobile layout.');
+ assert.deepEqual(errors,[]);console.log('Browser smoke passed: USB, profile, colors, art, service readouts/tests, diagnostic export/redaction, unplug/reconnect, mobile layout.');
  const unsupported=await browser.newPage();await unsupported.addInitScript(()=>Object.defineProperty(navigator,'serial',{value:undefined,configurable:true}));
  // Removing the property tests the draft's capability fallback.
  await unsupported.addInitScript(()=>{delete Navigator.prototype.serial;delete navigator.serial;});await unsupported.goto(url);await unsupported.locator('#support').filter({hasText:'does not expose'}).waitFor();assert.equal(await unsupported.locator('#connect').isDisabled(),true);await unsupported.close();

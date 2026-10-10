@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { parseLine, profileCommand, pixelIndex, artChunks, importDrawing, compareVersions } from '../web-controller/protocol.mjs';
+import { DiagnosticLog, redact, buildReport } from '../web-controller/diagnostics.mjs';
 
 test('profile validation blocks command injection and impossible birthdays',()=>{
   assert.equal(profileCommand(' Quarter ','02','29'),'SET PROFILE 02-29 Quarter');
@@ -24,4 +25,23 @@ test('drawing import rejects malformed payloads; protocol parsing retains equals
   assert.equal(importDrawing(value)[1][0],255);value.frames[0][3]=256;assert.throws(()=>importDrawing(value));
   const p=parseLine('HJ|ERR|message=a=b');assert.equal(p.data.message,'a=b');assert.equal(parseLine('boot noise'),null);
   assert.equal(compareVersions('0.18.10','0.18.4'),1);assert.throws(()=>compareVersions('latest','0.18.4'));
+});
+test('diagnostics redact credentials, profiles, network and frame payloads before storage',()=>{
+  const samples=['SET WIFI PASSWORD secretword','SET WIFI SSID secretword','SET PROFILE 08-25 secretword','HJ|PROFILE|owner=secretword|birthday=secretword','HJ|WIFI|ssid=secretword|ip=secretword','{"password":"secretword","owner":"secretword"}','ART DATA 0 0 secretword','HJ|OLED|data=secretword'];
+  for(const sample of samples)assert.ok(!redact(sample).includes('secretword'),sample);
+  const values=new Map(),storage={getItem:k=>values.get(k),setItem:(k,v)=>values.set(k,v)};
+  const log=new DiagnosticLog({storage});log.add('error','TX',samples[0]);log.flush();
+  assert.ok(![...values.values()][0].includes('secretword'));
+  const restored=new DiagnosticLog({storage});assert.equal(restored.entries.length,1);assert.equal(restored.entries[0].level,'error');
+});
+test('bounded log explicitly counts dropped events and tolerates blocked/full storage',()=>{
+  const log=new DiagnosticLog({maxEntries:2});for(let i=0;i<4;i++)log.add('info','TEST',String(i));
+  assert.equal(log.entries.length,2);assert.equal(log.dropped,2);
+  const blocked=new DiagnosticLog({storage:{getItem(){throw Error('blocked');},setItem(){throw Error('full');}}});blocked.add('error','USB','Port lost');blocked.flush();assert.equal(blocked.persistence,'unavailable');assert.equal(blocked.entries.length,1);
+  blocked.clear();assert.equal(blocked.entries.length,0);
+});
+test('support reports retain hardware evidence and observations without private profile fields',()=>{
+  const logger=new DiagnosticLog();logger.add('error','USB','No response');
+  const report=buildReport({logger,environment:{language:'de-DE',timezone:'Europe/Berlin'},identity:{serial:'HJ-123',fw:'0.18.4'},snapshots:{PROFILE:{at:'2026-10-10T00:00:00Z',fields:{owner:'private-name',birthday:'08-25'}},POWER:{at:'2026-10-10T00:00:01Z',fields:{voltage:'3.8',percent:'55'}}},tests:[{command:'TEST RGB',result:'response received',detail:'rgb=PASS'}],notes:'Screen blank after switch',observations:{screen:'Blank'}});
+  assert.equal(report.identity.serial,'HJ-123');assert.equal(report.readouts.POWER.fields.voltage,'3.8');assert.equal(report.observations.screen,'Blank');assert.ok(!JSON.stringify(report).includes('private-name'));assert.equal(report.entries[0].level,'error');
 });

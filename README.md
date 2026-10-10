@@ -79,3 +79,5 @@ See [BUILD_STATUS.md](BUILD_STATUS.md) for the distinction between host tests, r
 ## Browser controller draft
 
 [HAPPY JARZ Web Studio](web-controller/README.md) is an initial USB browser frontend: profile/time sync, lights, live OLED, jar keys and a two-frame art editor. Firmware installation and automatic plug-in launching are not enabled. Protocol tests passed; browser and physical Pi/Windows checks remain pending. See its README for local preview, optional Pages deployment and the release-update design. The existing Mini app remains available.
+
+Web Studio draft 0.2 adds the Pi app's main panel tabs, Service telemetry/tests, persistent bounded diagnostics and downloadable redacted support reports. BLOOPETZ and DND are reserved future panels. Firmware 0.18.4 timezone controls now use its supported IANA identifiers; broader international timezone support still needs a firmware extension. No firmware flash is required for this web-only change.

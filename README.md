@@ -4,7 +4,7 @@ This is the single source repository for the HAPPY JARZ ESP32-S3 SuperMini firmw
 
 ## Current source pair
 
-- Firmware: **0.18.1**
+- Firmware: **0.18.2**
 - Pi Mini app: **1.11.0**
 - Board profile: **SIMPLE / ESP32-S3 SuperMini / 4 MB flash**
 
@@ -19,7 +19,7 @@ sudo apt-get install python3-tk python3-serial
 python3 mini-app/app.py
 ```
 
-The app includes LIGHTS + CONTROL, WIFI + CLOCK, DISPLAY + INPUT, PROFILE, ART, and SERVICE tabs. PROFILE stores the owner's name and annual birthday (month and day only) on the Pi, keyed to the Jar's unique ESP32 chip ID, and in the Jar's settings memory. It shows a live countdown. On the birthday, the Jar runs a colorful light pattern and shows an OLED greeting while its clock has the correct date. The app syncs the Jar clock whenever it connects over USB.
+The app includes LIGHTS + CONTROL, WIFI + CLOCK, DISPLAY + INPUT, PROFILE, ART, and SERVICE tabs. PROFILE stores the owner's name and annual birthday (month and day only) on the Pi, keyed to the Jar's unique ESP32 chip ID, and in the Jar's settings memory. It shows a live countdown. On the birthday, the Jar runs a colorful light pattern and shows an OLED greeting while its clock has the correct date. The app syncs the Jar clock whenever it connects over USB. Firmware 0.18.2 also adds an on-board PROFILE editor for standalone owners, manual date/time access, and a randomized birthday countdown at startup when the clock is set.
 
 The ART tab has a 128×64 monochrome editor and frame maker. Create a still picture or two-frame animation, name it, and save it to **MY PICTURES**. Only saved pictures are included in a gallery transfer. MY PICTURES has a scrollbar for browsing the saved gallery.
 
@@ -52,6 +52,6 @@ arduino-cli lib install U8g2
 arduino-cli compile --fqbn esp32:esp32:esp32s3:CDCOnBoot=cdc firmware/HappyJarzMini
 ```
 
-Build and verify before uploading. The 0.18.1 owner profile and birthday behavior need a fresh compile and board test before this firmware version is treated as hardware-verified.
+Build successfully before uploading. Firmware 0.18.2 has not yet passed a clean compile or board test; see `firmware/README.md` and `BUILD_STATUS.md`.
 
 See [firmware/README.md](firmware/README.md) and [BUILD_STATUS.md](BUILD_STATUS.md) for the build steps and verification state.

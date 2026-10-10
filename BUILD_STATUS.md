@@ -61,3 +61,10 @@ Mark a firmware release verified only after a clean compile with the documented 
 - Captured pattern themes use a short live palette and readable text contrast. Explicit disconnect stops all three streams; a connection generation guard rejects old queued commands after reconnection. High-rate telemetry is sampled in the retained diagnostic log; errors are not sampled.
 - Nine Node logic tests passed, including the existing protocol/report tests and new RGB, brightness, capability, gamepad and theme checks. Syntax and static UI wiring checks passed (92 unique HTML IDs). Simulated browser smoke coverage was extended, but remains unexecuted without a working Chromium installation. Real Pi/Windows USB and visual checks remain pending.
 - No firmware change or flash is required. This update does not add a shared support inbox or automated remote repairs.
+
+## Web Studio draft 0.4 — separate panel modules
+
+- Each of the nine tabs has its own JavaScript file under `web-controller/tabs/`, including reserved Bloopetz/DND files. Shared page markup/CSS remain in `index.html`/`style.css`. App shell owns one USB port and queue; modules use injected shared requests and receive/reset/show hooks.
+- Module load/init errors are logged and disable the affected tab; receive errors are isolated from the serial reader. Device controls are disabled while connecting/closing. Write failures and timeout callbacks are scoped to their own pending request.
+- Ten Node tests passed: the nine existing logic tests plus actual module initialization and simulated serial integration covering all nine tab registrations, colors/pattern/50% clamp, capabilities/keyboard typing guard, Wi-Fi secret handling, alarms/timers, screensaver/marquee, profile/clock, complete two-frame upload, Service readout/ping/RGB/touch tests, redacted report export, rejection recovery, disconnect and reconnect.
+- ES-module syntax checks passed. Integration uses a minimal DOM and simulated firmware, so it does not verify visual layout or real USB. Chromium browser smoke and physical Pi/Windows checks remain pending. No firmware change or flash is required.

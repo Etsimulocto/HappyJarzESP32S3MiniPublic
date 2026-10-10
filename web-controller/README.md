@@ -1,4 +1,4 @@
-# HAPPY JARZ Web Studio — draft 0.3
+# HAPPY JARZ Web Studio — draft 0.4
 
 A static USB browser controller for the existing SuperMini SIMPLE protocol. No backend, account, Python installation, or paid domain required for website users. This is an initial implementation, not a hardware-verified replacement for the Mini app.
 
@@ -21,6 +21,26 @@ A static USB browser controller for the existing SuperMini SIMPLE protocol. No b
 - Existing screensaver enter/next/exit commands.
 - Two-frame 128×64 XBM pixel editor, preview, validated JSON import/export and ACK-gated upload to one of 50 slots. Upload replaces the selected slot after confirmation. The draft never formats or trims the gallery.
 - Release catalog check with explicit “not published” state. Firmware installation remains disabled. No firmware or partition changes accompany this draft.
+
+## Panel code layout
+
+Each tab has its own JavaScript module under `web-controller/tabs/`. `index.html` retains the shared page markup and `style.css` retains the responsive styles.
+
+| Tab | Code file |
+| --- | --- |
+| LIGHTS + CONTROL | `tabs/lights-control.js` |
+| WIFI + CLOCK | `tabs/wifi-clock.js` |
+| DISPLAY + INPUT | `tabs/display-input.js` |
+| PROFILE | `tabs/profile.js` |
+| ART | `tabs/art.js` |
+| SERVICE | `tabs/service.js` |
+| UPDATES | `tabs/updates.js` |
+| BLOOPETZ | `tabs/bloopetz.js` (reserved) |
+| DND | `tabs/dnd.js` (reserved) |
+
+`app.js` owns the single USB session, command queue, connection state, navigation and global error capture. Each panel exports `init(ctx)` and optional `receive`, `reset` and `onShow` hooks. Panels use shared request/ACK/query methods; they never open their own serial port. Profile saving calls the Clock panel through the shared context. Service owns the report UI and diagnostic display; persistent log storage/redaction stays in `diagnostics.mjs`.
+
+Modules load independently. Load/initialization failures disable the affected tab and produce a PANEL error in the retained log; receive-hook failures are logged without ending the USB reader. UI controls remain disabled during initial connection/disconnect. Timers and failed writes reject only the request they belong to, avoiding interference with later commands.
 
 ## Try locally
 
@@ -77,12 +97,12 @@ An optional Windows/Pi helper can later launch this site on insertion. It must r
 
 ## Validation and remaining work
 
-Nine protocol/diagnostics/light-control tests passed for birthday/name validation, two-frame packing, chunk limits, import validation, protocol/version parsing, diagnostic redaction/reload, bounded retention, blocked/full storage and support report contents, RGB validation, the 50% brightness ceiling, capability filtering, standard gamepad mapping and theme contrast. JavaScript syntax checks passed. Browser smoke tests with simulated serial hardware have been extended for Base/Live readouts, capability-gated keys, White/Off actions, opt-in keyboard input, ACK sequencing, rejected storage, disconnect cleanup and UI operation, but could not be executed in the development environment because the Chromium download failed. Browser rendering and real hardware behavior remain unverified. Neither test suite proves real USB reset behavior, drivers, touch timing, clock behavior, screen byte layout or flash preservation. Hardware trials on Pi and Windows are required. The Mini app remains the established controller.
+Ten Node tests passed: nine protocol/diagnostics/light-control tests plus an integration test executing the actual panel modules against a minimal DOM and simulated serial firmware. The logic tests cover birthday/name validation, two-frame packing, chunk limits, import validation, protocol/version parsing, diagnostic redaction/reload, bounded retention, blocked/full storage and support report contents, RGB validation, the 50% brightness ceiling, capability filtering, standard gamepad mapping and theme contrast. JavaScript syntax checks passed. Browser smoke tests with simulated serial hardware have been extended for Base/Live readouts, capability-gated keys, White/Off actions, opt-in keyboard input, ACK sequencing, rejected storage, disconnect cleanup and UI operation, but could not be executed in the development environment because the Chromium download failed. The module integration test passed for nine-tab mounting, shared USB connect/reconnect, capability-gated keys, typing/opt-in keyboard behavior, White/Off/pattern/brightness, Wi-Fi credential handling, alarm/timer, display/marquee, clock/profile saving, complete art transfer, Service readout/RGB/touch/ping routines, redacted report export and device-error recovery. This minimal DOM does not render the page. Browser rendering and real hardware behavior remain unverified. These tests do not prove real USB reset behavior, drivers, touch timing, clock behavior, screen byte layout or flash preservation. Hardware trials on Pi and Windows are required. The Mini app remains the established controller.
 
-To run the protocol tests from the repository root:
+To run the logic and module integration tests from the repository root:
 
 ```bash
-node --test tests/web-studio.test.mjs
+node --test tests/web-studio.test.mjs tests/web-panels.test.mjs
 ```
 
 For the browser test, install Playwright and its Chromium browser in `tests/`, then run `node tests/browser-smoke.mjs` from the repository root. The browser test simulates the serial device and never accesses a real jar.

@@ -2,7 +2,7 @@
   "name": "happyjarz-web-studio-tests",
   "private": true,
   "scripts": {
-    "test": "node --test web-studio.test.mjs",
+    "test": "node --test web-studio.test.mjs web-panels.test.mjs",
     "browser": "node browser-smoke.mjs"
   },
   "devDependencies": {

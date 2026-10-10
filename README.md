@@ -84,3 +84,5 @@ Web Studio draft 0.2 adds the Pi app's main panel tabs, Service telemetry/tests,
 
 
 Web Studio draft 0.3 expands LIGHTS + CONTROL to follow the Pi panel: four Base/Live light cards, White/Off and individual color controls, 100 patterns, the 50% brightness ceiling, live touch tiles, capability-gated console keys, OLED mirror, optional keyboard/gamepad input and a captured pattern theme. Service reports remain downloadable locally; there is no central report inbox or automatic repair service yet. Nine logic tests and static wiring checks passed; browser/real USB checks remain pending.
+
+Web Studio draft 0.4 moves each tab's JavaScript into its own module under `web-controller/tabs/`. USB, command sequencing and global diagnostics stay shared in `app.js`; page markup remains in `index.html`. Ten Node tests passed, including simulated panel integration covering controls, profile/clock, Wi-Fi, display, art upload, Service reports and reconnect. Actual browser/board checks are still required.

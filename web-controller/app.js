@@ -1,30 +1,23 @@
-import { parseLine, profileCommand, pixelIndex, artChunks, importDrawing, compareVersions } from './protocol.mjs';
-import { DiagnosticLog, buildReport, safeFields } from './diagnostics.mjs';
-import { INPUT_KEYS, rgb, rgbHex, hexRgb, brightness, capabilities, gamepadKeys, patternTheme } from './lights.mjs';
+import { parseLine } from './protocol.mjs';
+import { DiagnosticLog } from './diagnostics.mjs';
 const $ = id => document.getElementById(id);
 let storage; try { storage=localStorage; } catch {}
-const diagnostics=new DiagnosticLog({storage}), snapshots={}, testResults=[];
-let latestIdentity, usbInfo, diagnosticFlushTimer, serviceBusy=false, inputTimer;
-function renderDiagnostics(){
-  const filter=$('log-filter').value;
-  const entries=diagnostics.entries.filter(e=>filter==='all' || (filter==='error' ? e.level==='error' : e.level!=='info'));
-  const lines=entries.map(e=>`${e.at} ${e.level.toUpperCase()} ${e.kind} ${e.text}`);
-  $('service-log').textContent=lines.slice(-250).join('\n');$('log').textContent=lines.slice(-80).join('\n');
-  $('log-health').textContent=`${diagnostics.entries.length}/${diagnostics.maxEntries} events retained · ${diagnostics.dropped} older events dropped · storage: ${diagnostics.persistence}. Screen shows the latest 250 matching events; downloads include all retained events.`;
-}
+const diagnostics=new DiagnosticLog({storage}), snapshots={};
+const panels={};
+let latestIdentity, usbInfo, diagnosticFlushTimer, serviceBusy=false;
 let port, reader, writer, readTask, identity, pending, queue = Promise.resolve(), closing = false, connecting = false, transferring = false;
-let pollTimer, handshakeTimer, releaseCatalog;
-let deviceControls=new Set(), brightnessTimer, themeTimer, themeFrames=[], currentScene='', themedScene='', connectionGeneration=0, hostPending=0;
+let pollTimer, handshakeTimer;
+let deviceControls=new Set(), connectionGeneration=0, booting=true;
 const telemetryLogTimes={};
 function message(text,level='info') { $('message').textContent = text; log(text,level,'UI'); }
 function log(text,level='info',kind='RX') {
-  diagnostics.add(level,kind,text);renderDiagnostics();
-  if(!diagnosticFlushTimer)diagnosticFlushTimer=setTimeout(()=>{diagnosticFlushTimer=null;diagnostics.flush();renderDiagnostics();},800);
+  diagnostics.add(level,kind,text);panels.service?.renderDiagnostics();
+  if(!diagnosticFlushTimer)diagnosticFlushTimer=setTimeout(()=>{diagnosticFlushTimer=null;diagnostics.flush();panels.service?.renderDiagnostics();},800);
 }
 function controls() {
-  document.querySelectorAll('[data-device]').forEach(el => el.disabled = !identity || transferring || serviceBusy);
-  document.querySelectorAll('[data-key]').forEach(el=>el.disabled=!identity || transferring || serviceBusy || !deviceControls.has(el.dataset.key));
-  $('connect').disabled = connecting || closing || !('serial' in navigator);
+  document.querySelectorAll('[data-device]').forEach(el => el.disabled = !identity || connecting || closing || transferring || serviceBusy);
+  document.querySelectorAll('[data-key]').forEach(el=>el.disabled=!identity || connecting || closing || transferring || serviceBusy || !deviceControls.has(el.dataset.key));
+  $('connect').disabled = booting || connecting || closing || !navigator.serial?.requestPort;
   $('connect').hidden = Boolean(identity);
   $('disconnect').hidden = !port;
   $('disconnect').disabled = transferring || closing;
@@ -39,63 +32,15 @@ function receive(line) {
   if(type==='OLED')snapshots[type].fields={...data,data:'[frame payload omitted]'};
   const highRate=['OLED','LED_FRAME','INPUT','TOUCH'].includes(type),now=performance.now();
   if(!highRate || now-(telemetryLogTimes[type]??-Infinity)>1000){log(line,type==='ERR'?'error':'info','RX');telemetryLogTimes[type]=now;}
-  updateReadouts();
+
   if (pending && (type === 'ERR' || pending.match(parsed))) {
     const p = pending; pending = null; clearTimeout(p.timer);
     type === 'ERR' ? p.reject(new Error(data.message || 'Jar rejected the command.')) : p.resolve(parsed);
   }
   if (type === 'IDENTITY') {
-    identity = data;latestIdentity={...data}; controls(); $('identity').textContent = `${data.serial || 'HAPPY JARZ'} · ${data.hw || '?'} · firmware ${data.fw || '?'}`;
-    updateReleaseStatus();
+    identity = data;latestIdentity={...data}; controls();
   }
-  if (type === 'PROFILE') {
-    $('owner').value = data.owner || '';
-    const parts = /^\d{2}-\d{2}$/.test(data.birthday || '') ? data.birthday.split('-') : ['', ''];
-    $('birth-month').value = parts[0]; $('birth-day').value = parts[1];
-  }
-  if (type === 'STATUS') {
-    updateScene(data);
-    if ([...$('pattern').options].some(o => o.value === data.pattern)) $('pattern').value = data.pattern;
-    if (Number.isFinite(Number(data.brightness))) { $('brightness').value = brightness(data.brightness); $('brightness-label').textContent = `${brightness(data.brightness)}%`; }
-    for (let i = 1; i <= 4; i++) {
-      const rgb = data[`led${i}`]?.split(',').map(Number);
-      if (rgb?.length === 3 && rgb.every(n => Number.isInteger(n) && n >= 0 && n <= 255)) {const hex=rgbHex(rgb);$('color'+i).value=hex;$('base'+i).style.backgroundColor=hex;$('base-value'+i).textContent=hex.toUpperCase();}
-    }
-  }
-  if (type === 'POWER') $('power').textContent = Number(data.percent) >= 0 ? `Battery ${data.percent}% · ${data.voltage || '—'} V` : 'Battery reading unavailable';
-  if(type==='CAPS'){
-    deviceControls=capabilities(data.controls);controls();$('input-capabilities').textContent=`${data.profile || 'Device'} · ${deviceControls.size} advertised controls`;
-    for(const key of INPUT_KEYS){$('input-'+key).classList.toggle('unsupported',!deviceControls.has(key));$('input-value-'+key).textContent=deviceControls.has(key)?'—':'N/A';}
-  }
-  if(type==='INPUT' || type==='TOUCH'){
-    for(const key of INPUT_KEYS){const value=data[key] ?? (key==='a'?data.c1:key==='b'?data.c2:undefined);if(deviceControls.has(key) && value!==undefined)$('input-value-'+key).textContent=value;}
-    $('input-state').textContent='Live touch readings · '+new Date().toLocaleTimeString();
-  }
-  if(type==='EVENT' && data.input)pulseKey(data.input.toLowerCase());
-  if(type==='LED_FRAME'){
-    updateScene(data);const frame=[];
-    for(let i=1;i<=4;i++){const color=rgb(data['led'+i] ?? data['live_led'+i]);if(color){const hex=rgbHex(color);$('live'+i).style.backgroundColor=hex;$('live-value'+i).textContent=hex.toUpperCase();frame.push(color);}}
-    if(!themeTimer && themedScene!==currentScene && $('pattern-theme').checked)captureTheme();
-    if(themeTimer && frame.length===4 && themeFrames.length<64)themeFrames.push(frame);
-  }
-  if(type==='WIFI')$('wifi-state').textContent=`${data.state} · ${data.ssid || 'No network'} · signal ${data.rssi || '—'} dBm`;
-  if(type==='TIME'){$('time-state').textContent=`${data.local || 'Clock not synced'} · ${data.timezone || '—'}`;if([...$('timezone').options].some(o=>o.value===data.timezone))$('timezone').value=data.timezone;}
-  if(type==='ALARM' || type==='TIMER')$('schedule-state').textContent=type+': '+Object.entries(data).map(([k,v])=>`${k}=${v}`).join(' · ');
-  if(type==='SAVER')$('saver-state').textContent=Object.entries(data).map(([k,v])=>`${k}=${v}`).join(' · ');
-  if (type === 'OLED' && data.codec === 'b64v1') {
-    try {
-      const bytes = Uint8Array.from(atob(data.data), c => c.charCodeAt(0));
-      if (bytes.length !== 1024) {log('OLED frame has incorrect byte count','warn','PROTOCOL');return;}
-      // U8g2 live stream uses vertical pages; art upload uses row-major XBM.
-      const ctx = $('oled').getContext('2d'), image = ctx.createImageData(128,64);
-      for (let y=0;y<64;y++) for (let x=0;x<128;x++) {
-        const lit = bytes[(y>>3)*128+x] & (1<<(y&7));
-        const i=(y*128+x)*4; image.data.set(lit ? [168,231,214,255] : [6,11,21,255],i);
-      }
-      ctx.putImageData(image,0,0);
-      $('oled-state').textContent=`LIVE · frame ${data.seq || '—'} · ${new Date().toLocaleTimeString()}`;
-    } catch { log('Ignored malformed screen frame.','warn','PROTOCOL'); }
-  }
+  notifyPanels('receive',parsed);
 }
 async function readLoop() {
   const decoder = new TextDecoder(); let buffer = '';
@@ -125,40 +70,22 @@ function request(command, match, timeout=5000) {
     if(generation!==connectionGeneration)throw new Error('Request belongs to a previous USB connection.');
     if (!identity && command !== 'HELLO') throw new Error('Connect your jar first.');
     return new Promise((resolve,reject) => {
-      const timer = setTimeout(()=>rejectPending(new Error('No response from jar: '+command.split(' ').slice(0,2).join(' '))),timeout);
-      pending={resolve,reject,match,timer,command};
-      write(command).catch(rejectPending);
+      const current={resolve,reject,match,command};
+      current.timer=setTimeout(()=>{if(pending===current)rejectPending(new Error('No response from jar: '+command.split(' ').slice(0,2).join(' ')));},timeout);
+      pending=current;
+      write(command).catch(error=>{if(pending===current)rejectPending(error);});
     });
   });
   queue=work.catch(()=>{}); return work;
 }
 function ack(command, response=command) { return request(command,p=>p.type==='ACK' && p.data.command===response); }
 function query(command,type) { return request(command,p=>p.type===type); }
-function updateReadouts(){
-  if($('service').hidden)return;
-  const root=$('service-readouts');root.replaceChildren();
-  for(const type of ['IDENTITY','CAPS','POWER','STATUS','LED_FRAME','OLED','WIFI','TIME','ALARM','TIMER','DISPLAY','INPUT','TOUCH_CAL','SAVER','ACCESSORY','SLEEP','ART']){
-    const card=document.createElement('section'),heading=document.createElement('h3'),body=document.createElement('pre'),stamp=document.createElement('small');
-    heading.textContent=type;const reading=snapshots[type];
-    body.textContent=reading ? Object.entries(safeFields(reading.fields)).map(([k,v])=>`${k}: ${v}`).join('\n') : 'No reading yet';
-    stamp.textContent=reading ? `Received ${reading.at}${identity ? '' : ' · disconnected; last known reading'}` : 'Refresh to read';
-    card.append(heading,body,stamp);root.append(card);
-  }
-}
-async function serviceTest(label,command,match,timeout=10000){
-  const start=performance.now();serviceBusy=true;controls();
-  try {const response=await request(command,match,timeout);const detail=JSON.stringify(safeFields(response.data));
-    testResults.push({at:new Date().toISOString(),board:identity?.serial,label,command,elapsedMs:Math.round(performance.now()-start),result:'response received',detail});
-    log(`${label}: firmware response ${detail}. Physical result requires observation.`,'info','TEST');message(`${label} completed. Check the physical result and record your observations.`);
-  }catch(error){testResults.push({at:new Date().toISOString(),board:latestIdentity?.serial,label,command,elapsedMs:Math.round(performance.now()-start),result:'failed',detail:error.message});log(`${label}: ${error.message}`,'error','TEST');throw error;}
-  finally{if(testResults.length>100)testResults.shift();$('service-tests').textContent=testResults.map(t=>`${t.at} · ${t.label}: ${t.result} (${t.elapsedMs} ms) · ${t.detail}`).join('\n');serviceBusy=false;controls();}
-}
 async function connect() {
-  connectionGeneration++;deviceControls=new Set();currentScene='';themedScene='';
+  connectionGeneration++;deviceControls=new Set();notifyPanels('reset');
   connecting=true; controls(); message('Select your jar. Keep the Pi controller closed.');
   try {
     port=await navigator.serial.requestPort();
-    for(const key of Object.keys(snapshots))delete snapshots[key];updateReadouts();
+    for(const key of Object.keys(snapshots))delete snapshots[key];
     usbInfo=port.getInfo?.() || {};log(JSON.stringify(usbInfo),'info','USB');
     await port.open({baudRate:115200});
     await port.setSignals({dataTerminalReady:false,requestToSend:false});
@@ -179,10 +106,10 @@ async function connect() {
 }
 async function disconnect() {
   if (closing) return;
-  closing=true; clearInterval(pollTimer); clearInterval(handshakeTimer);clearInterval(inputTimer);$('live-input').checked=false;log('Disconnecting serial session.','info','USB'); rejectPending(new Error('Jar disconnected.'));
-  connectionGeneration++;clearTimeout(brightnessTimer);clearTimeout(themeTimer);themeTimer=null;themeFrames=[];deviceControls=new Set();$('oled-state').textContent='Disconnected · last received screen';$('input-state').textContent='Disconnected · readings paused';
-  identity=null; controls();
-  try{if(writer){const command='STREAM OLED OFF\nSTREAM LED OFF\nSTREAM TOUCH OFF\n';log('Stopping OLED, LED and touch streams.','info','USB');await writer.write(new TextEncoder().encode(command));}}catch(error){log(error.message,'warn','USB-CLEANUP');}
+  closing=true; clearInterval(pollTimer); clearInterval(handshakeTimer);log('Disconnecting serial session.','info','USB'); rejectPending(new Error('Jar disconnected.'));
+  connectionGeneration++;deviceControls=new Set();
+  identity=null; controls();notifyPanels('reset');
+  try{if(writer && reader){const command='STREAM OLED OFF\nSTREAM LED OFF\nSTREAM TOUCH OFF\n';log('Stopping OLED, LED and touch streams.','info','USB');await writer.write(new TextEncoder().encode(command));}}catch(error){log(error.message,'warn','USB-CLEANUP');}
   try { await reader?.cancel(); await readTask; } catch(error){log(error.message,'warn','USB-CLEANUP');}
   try { writer?.releaseLock(); } catch(error){log(error.message,'warn','USB-CLEANUP');} writer=null;
   try { await port?.close(); } catch(error){log(error.message,'warn','USB-CLEANUP');} port=null; readTask=null; closing=false; controls();
@@ -192,140 +119,30 @@ $('connect').onclick=connect; $('disconnect').onclick=()=>void disconnect();
 document.querySelectorAll('[data-tab]').forEach(button=>button.onclick=()=>{
   document.querySelectorAll('.panel').forEach(p=>p.hidden=p.id!==button.dataset.tab);
   document.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-selected',String(b===button)));
-  if(button.dataset.tab==='service')updateReadouts();
+  panels[button.dataset.tab]?.onShow?.();
 });
 document.querySelectorAll('[data-command]').forEach(button=>button.onclick=action(async()=>{
   const command=button.dataset.command;
   if(command==='GET PROFILE') await query(command,'PROFILE'); else await ack(command,command.startsWith('KEY ') ? 'KEY' : command.startsWith('SET INPUT MODE ') ? 'SET INPUT MODE' : command);
   message('Jar acknowledged: '+command);
 }));
-const patterns=['SOLID','FADE','PULSE','RAINBOW','RANDOM','HUE_FADE','DUAL_HUE','BREATH','DRIFT','AURORA','OCEAN','LAVENDER','SUNSET','CHRISTMAS','HALLOWEEN','VALENTINE','EASTER','FOURTH','THANKSGIVING','CANDY','GALAXY','FIRE','ICE','FOREST','NEON','TWINKLE','SPARKLE','COLOR_SWAP','COMET','FIREFLY','BUBBLEGUM','CHASE_CW','CHASE_CCW','JAR_CHASE','SIDE_CHASE','SWEEP_LR','SWEEP_TS','DIAGONAL','PING_PONG','DUAL_CHASE','OPP_CHASE','JAR_PULSE','SIDE_ACCENT','WATERFALL','RIPPLE','TIDAL','MOONWAVE','DEEPSEA','LAGOON','ARCTIC','GLACIER','EMBER','CAMPFIRE','SUNRISE','SOLAR','INFERNO','CANDLE','AUTUMN','HARVEST','MINT','MEADOW','JUNGLE','MOSS','CLOVER','SPRING','RAINFOREST','LIMEADE','DREAM','COTTON_CANDY','MERMAID','UNICORN','VAPOR','COSMIC','STARDUST','NEBULA','ROSE_GOLD','PEACH','CORAL','CHERRY','BERRY','PLUM','GRAPE','MAGENTA','ELECTRIC','CYBER','LASER','SYNTH','ARCADE','MATRIX','PLASMA','HOLOGRAM','RAIN','THUNDER','LIGHTNING','CLOUD','SNOW','FROST','SUNBEAM','MOONLIGHT','OFF'];
-for (const pattern of patterns) $('pattern').add(new Option(pattern.replaceAll('_',' '),pattern));
-for (let i=1;i<=4;i++) {
-  const card=document.createElement('article');card.className='light-card';
-  card.innerHTML=`<div class="section-head"><h3>LIGHT ${i}</h3><span class="light-location">${['Top left jar','Top right jar','Left side accent','Right side accent'][i-1]}</span></div><div class="swatch-row"><div><span>BASE</span><i id="base${i}" class="swatch"></i><output id="base-value${i}">—</output></div><div><span>LIVE</span><i id="live${i}" class="swatch"></i><output id="live-value${i}">—</output></div></div><div class="light-actions"><label class="color-chooser">Choose color<input id="color${i}" type="color" value="#000000" data-device aria-label="Light ${i} base color"></label><button id="white${i}" data-device>White</button><button id="off${i}" data-device>Off</button></div>`;
-  $('colors').append(card);
-  $('color'+i).onchange=action(()=>setLight(i,hexRgb($('color'+i).value)));
-  $('white'+i).onclick=action(()=>setLight(i,[255,255,255]));$('off'+i).onclick=action(()=>setLight(i,[0,0,0]));
-}
-async function setLight(i,color){await ack(`SET LED${i} COLOR ${color.join(' ')}`,`SET LED${i} COLOR`);await query('GET STATUS','STATUS');message(`Light ${i} base color applied. Patterns may animate the live color.`);}
-async function applyPattern(){await ack('SET PATTERN '+$('pattern').value,'SET PATTERN');await query('GET STATUS','STATUS');message('Pattern applied.');}
-$('apply-pattern').onclick=action(applyPattern);$('pattern').onchange=action(applyPattern);
-async function applyBrightness(){await ack('SET BRIGHTNESS '+brightness($('brightness').value),'SET BRIGHTNESS');await query('GET STATUS','STATUS');}
-$('brightness').oninput=()=>{$('brightness-label').textContent=brightness($('brightness').value)+'%';clearTimeout(brightnessTimer);if(identity&&!transferring&&!serviceBusy)brightnessTimer=setTimeout(()=>applyBrightness().catch(error=>message(error.message,'error')),120);};
-$('apply-brightness').onclick=action(async()=>{clearTimeout(brightnessTimer);await applyBrightness();message('Brightness applied.');});
-$('apply-colors').onclick=action(async()=>{for(let i=1;i<=4;i++){const color=hexRgb($('color'+i).value);await ack(`SET LED${i} COLOR ${color.join(' ')}`,`SET LED${i} COLOR`);}await query('GET STATUS','STATUS');message('Colors applied. Select SOLID to display them continuously.');});
-function captureTheme(){
-  clearTimeout(themeTimer);themeTimer=null;themeFrames=[];
-  if(!$('pattern-theme').checked)return;
-  themeTimer=setTimeout(()=>{
-    themeTimer=null;const hadFrames=themeFrames.length>0,theme=patternTheme(themeFrames);themeFrames=[];if(hadFrames)themedScene=currentScene;if(!theme)return;
-    for(const [name,value] of Object.entries({bg:theme.bg,card:theme.panel,ink:theme.text,line:theme.border,pink:theme.text,mint:theme.text,muted:theme.text}))document.documentElement.style.setProperty('--'+name,value);
-  },650);
-}
-function resetTheme(){for(const name of ['bg','card','ink','line','pink','mint','muted'])document.documentElement.style.removeProperty('--'+name);}
-function updateScene(data){
-  if(data.pattern && data.pattern!==currentScene){currentScene=data.pattern;if(patterns.includes(data.pattern))$('pattern').value=data.pattern;captureTheme();}
-  $('scene-state').textContent=`${currentScene || 'Unknown pattern'} · ${data.brightness ?? $('brightness').value}% · last update ${new Date().toLocaleTimeString()}`;
-}
-$('reset-theme').onclick=()=>{resetTheme();$('pattern-theme').checked=false;clearTimeout(themeTimer);themeTimer=null;themeFrames=[];};
-$('pattern-theme').onchange=()=>{$('pattern-theme').checked?captureTheme():resetTheme();};
-$('refresh-lights').onclick=action(async()=>{for(const [command,type] of [['GET STATUS','STATUS'],['GET CAPS','CAPS'],['GET LED FRAME','LED_FRAME'],['GET INPUT','INPUT'],['GET OLED','OLED']])await query(command,type);message('Lights and console refreshed.');});
-const pulseTimers=new Map();
-for(const key of INPUT_KEYS){
-  const tile=document.createElement('div');tile.id='input-'+key;tile.className='input-tile unsupported';
-  const title=document.createElement('strong'),value=document.createElement('output');title.textContent=key.toUpperCase();value.id='input-value-'+key;value.textContent='N/A';tile.append(title,value);$('input-tiles').append(tile);
-  const button=document.createElement('button');button.id='key-'+key;button.dataset.key=key;button.textContent=key.toUpperCase();button.onclick=action(()=>sendHostKey(key));$('mini-buttons').append(button);
-}
-function pulseKey(key){if(!INPUT_KEYS.includes(key))return;clearTimeout(pulseTimers.get(key));for(const id of ['input-','key-'])$(id+key).classList.add('active');pulseTimers.set(key,setTimeout(()=>{for(const id of ['input-','key-'])$(id+key).classList.remove('active');pulseTimers.delete(key);},120));}
-async function sendHostKey(key){
-  if(!identity || !deviceControls.has(key) || transferring || serviceBusy || closing || connecting || hostPending>=4)return;
-  hostPending++;try{await ack('KEY '+key,'KEY');pulseKey(key);}finally{hostPending--;}
-}
-const keyboardKeys={ArrowUp:'up',ArrowDown:'down',ArrowLeft:'left',ArrowRight:'right',z:'a',x:'b',a:'x',s:'y',q:'l',w:'r',Enter:'start',Shift:'select'};
-function hostInputAllowed(){const target=document.activeElement;return $('host-input-enabled').checked && !$('home').hidden && document.hasFocus() && !target?.matches('input,textarea,select,[contenteditable=true]');}
-window.addEventListener('keydown',event=>{const key=keyboardKeys[event.key] || keyboardKeys[event.key.toLowerCase()];if(!key || event.repeat || event.ctrlKey || event.metaKey || event.altKey || !hostInputAllowed() || !identity || !deviceControls.has(key))return;event.preventDefault();void sendHostKey(key).catch(error=>message(error.message,'error'));});
-let previousGamepadKeys=new Set(),lastGamepad='';
-function pollGamepad(){
-  let pad;try{pad=Array.from(navigator.getGamepads?.() || []).find(p=>p?.connected);}catch(error){$('gamepad-state').textContent='Gamepad access unavailable in this browser.';log(error.message,'warn','GAMEPAD');return;}
-  const label=pad ? `${pad.id} · ${pad.mapping==='standard'?'standard mapping':'mapping unsupported'}` : 'No gamepad detected · press a controller button to discover it';
-  if(label!==lastGamepad){$('gamepad-state').textContent=label;lastGamepad=label;}
-  const keys=gamepadKeys(pad);
-  if(hostInputAllowed())for(const key of keys)if(!previousGamepadKeys.has(key))void sendHostKey(key).catch(error=>message(error.message,'error'));
-  previousGamepadKeys=keys;requestAnimationFrame(pollGamepad);
-}
-requestAnimationFrame(pollGamepad);
-for(let m=1;m<=12;m++) $('birth-month').add(new Option(new Date(2000,m-1,1).toLocaleString('en',{month:'long'}),String(m).padStart(2,'0')));
-async function syncClock() {await ack('SET TIMEZONE '+$('timezone').value,'SET TIMEZONE');await ack('SET CLOCK UNIX '+Math.floor(Date.now()/1000),'SET CLOCK UNIX');await ack('SAVE');}
-$('sync-clock').onclick=action(async()=>{await syncClock();message('Clock synced and time zone saved.');});
-$('profile-form').onsubmit=action(async()=>{const cmd=profileCommand($('owner').value,$('birth-month').value,$('birth-day').value);await ack(cmd,'SET PROFILE');await syncClock();message('Profile saved on your jar and clock synced.');});
-let frames=[new Uint8Array(1024),new Uint8Array(1024)], frame=0, previewTimer, painting=false;
-function renderArt() {const ctx=$('art-canvas').getContext('2d'), image=ctx.createImageData(128,64);for(let y=0;y<64;y++)for(let x=0;x<128;x++){const [byte,bit]=pixelIndex(x,y);image.data.set(frames[frame][byte]&bit ? [168,231,214,255] : [6,11,21,255],(y*128+x)*4);}ctx.putImageData(image,0,0);$('frame0').setAttribute('aria-pressed',String(frame===0));$('frame1').setAttribute('aria-pressed',String(frame===1));}
-function stopPreview(){clearInterval(previewTimer);previewTimer=null;$('preview').textContent='Play preview';}
-function paint(event){const box=$('art-canvas').getBoundingClientRect();const x=Math.floor((event.clientX-box.left)/box.width*128), y=Math.floor((event.clientY-box.top)/box.height*64);if(x<0||y<0||x>=128||y>=64)return;const [byte,bit]=pixelIndex(x,y);$('erase').checked ? frames[frame][byte]&=~bit : frames[frame][byte]|=bit;renderArt();}
-$('art-canvas').onpointerdown=event=>{stopPreview();painting=true;$('art-canvas').setPointerCapture(event.pointerId);paint(event);};
-$('art-canvas').onpointermove=event=>{if(painting)paint(event);};
-$('art-canvas').onpointerup=$('art-canvas').onpointercancel=()=>{painting=false;};
-for(let i=0;i<2;i++) $('frame'+i).onclick=()=>{stopPreview();frame=i;renderArt();};
-$('preview').onclick=()=>{if(previewTimer)stopPreview();else{$('preview').textContent='Stop preview';previewTimer=setInterval(()=>{frame=1-frame;renderArt();},400);}};
-$('copy-frame').onclick=()=>{stopPreview();frames[1-frame]=frames[frame].slice();message('Copied to the other frame.');};
-$('clear-frame').onclick=()=>{stopPreview();frames[frame].fill(0);renderArt();};
-$('export-art').onclick=()=>{const blob=new Blob([JSON.stringify({format:'happyjarz-xbm-v1',frames:frames.map(f=>[...f])})],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='happyjarz-drawing.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);};
-$('import-art').onchange=action(async()=>{const file=$('import-art').files[0];if(!file)return;if(file.size>20000)throw new Error('Drawing file is too large.');frames=importDrawing(JSON.parse(await file.text()));stopPreview();renderArt();message('Drawing loaded.');});
-$('upload-art').onclick=action(async()=>{
-  const slot=Number($('art-slot').value)-1, commands=artChunks(frames.map(f=>f.slice()),slot);
-  if(!confirm(`Replace art slot ${slot+1} on the jar with these two frames?`)) return;
-  transferring=true;controls();$('art-progress').hidden=false;$('art-progress').value=0;
-  try {
-    const ready=await request('ART READY',p=>p.type==='ART' && p.data.event==='READY');
-    if(ready.data.ready!=='1')throw new Error('Art storage is unavailable. This draft will not format it.');
-    for(const entry of commands){await request(entry.command,p=>p.type==='ART' && p.data.event===entry.event && Number(p.data.slot)===entry.slot && (entry.offset===undefined || Number(p.data.offset)===entry.offset));if(entry.offset)$('art-progress').value=entry.offset;}
-    message(`Two frames saved in jar slot ${slot+1}. Choose the Art Gallery screensaver on the jar.`);
-  } finally {transferring=false;controls();}
-});
-async function checkUpdates(){
-  $('release-status').textContent='Checking release information…';
-  try {const response=await fetch('./releases.json',{cache:'no-store',signal:AbortSignal.timeout(10000)});if(!response.ok)throw new Error('Release information is unavailable.');const catalog=await response.json();if(catalog.schema!==1 || !Array.isArray(catalog.releases))throw new Error('Invalid release information.');releaseCatalog=catalog;updateReleaseStatus();}
-  catch(error){$('release-status').textContent=error.message+' Your jar can still work offline.';log(error.message,'error','RELEASE-FETCH');}
-}
-function updateReleaseStatus(){if(!releaseCatalog)return;const stable=releaseCatalog.releases.filter(r=>r.channel==='stable' && r.model==='happyjarz-supermini-simple-4mb');if(!stable.length){$('release-status').textContent=`No tested firmware download has been published yet.${identity ? ' Connected firmware: '+identity.fw+'.' : ''}`;return;}try{stable.sort((a,b)=>compareVersions(b.version,a.version));$('release-status').textContent=`Latest listed release: ${stable[0].version}. Exact board compatibility must be verified before installation. Installer remains disabled.`;}catch{$('release-status').textContent='Release catalog contains an unsupported version. Installer remains disabled.';}}
-$('check-updates').onclick=checkUpdates;
-$('support').textContent='serial' in navigator ? 'USB browser support detected. Click Connect jar to begin.' : 'This browser does not expose Web Serial. Try a current desktop Chrome or Edge; other browser versions vary.';
+$('support').textContent=Boolean(navigator.serial?.requestPort) ? 'USB browser support detected. Click Connect jar to begin.' : 'This browser does not expose Web Serial. Try a current desktop Chrome or Edge; other browser versions vary.';
 document.querySelectorAll('[data-query]').forEach(button=>button.onclick=action(async()=>{await query(button.dataset.query,button.dataset.response);message('Readout refreshed.');}));
-$('wifi-form').onsubmit=action(async()=>{
-  const ssid=$('wifi-ssid').value,password=$('wifi-password').value;
-  if(!ssid || !password || new TextEncoder().encode(ssid).length>32 || new TextEncoder().encode(password).length>63 || /[\r\n]/.test(ssid+password))throw new Error('Enter SSID and password, check their lengths and remove line breaks. Empty passwords are not supported by the current firmware command.');
-  await ack('SET WIFI SSID '+ssid,'SET WIFI SSID');
-  await ack('SET WIFI PASSWORD '+password,'SET WIFI PASSWORD');
-  await ack('SAVE');await ack('WIFI CONNECT','WIFI CONNECT');$('wifi-password').value='';await query('GET WIFI STATUS','WIFI');message('Wi-Fi saved; status read from jar.');
-});
-$('set-alarm').onclick=action(async()=>{const time=$('alarm-time').value;if(!/^\d{2}:\d{2}$/.test(time))throw new Error('Choose an alarm time.');await ack('SET ALARM '+time,'SET ALARM');const command='SET ALARM '+($('alarm-enabled').checked?'ON':'OFF');await ack(command);await query('GET ALARM','ALARM');message('Alarm applied. Use Save settings to persist it.');});
-$('set-timer').onclick=action(async()=>{const minutes=Number($('timer-minutes').value);if(!Number.isInteger(minutes)||minutes<1||minutes>10080)throw new Error('Timer must be 1–10080 minutes.');await ack('SET TIMER MINUTES '+minutes,'SET TIMER MINUTES');await query('GET TIMER','TIMER');message('Timer started.');});
-$('set-saver').onclick=action(async()=>{await ack('SET SAVER MODE '+$('saver-mode').value,'SET SAVER MODE');message('Screensaver applied.');});
-$('save-saying').onclick=action(async()=>{const slot=Number($('saying-slot').value),text=$('saying-text').value.trim();if(!Number.isInteger(slot)||slot<1||slot>50||!text||/[|\r\n]/.test(text)||new TextEncoder().encode(text).length>96)throw new Error('Choose slot 1–50 and a single line of up to 96 UTF-8 bytes without |.');await ack(`SET CUSTOM SAYING ${slot} ${text}`,'SET CUSTOM SAYING');message('Marquee saying saved.');});
-$('set-saying-source').onclick=action(async()=>{await ack('SET SAYING SOURCE '+$('saying-source').value,'SET SAYING SOURCE');message('Saying source applied.');});
-$('refresh-service').onclick=action(async()=>{
-  serviceBusy=true;controls();let failed=0;
-  try{for(const [command,type] of [['GET CAPS','CAPS'],['GET POWER','POWER'],['GET STATUS','STATUS'],['GET LED FRAME','LED_FRAME'],['GET OLED','OLED'],['GET WIFI STATUS','WIFI'],['GET TIME STATUS','TIME'],['GET ALARM','ALARM'],['GET TIMER','TIMER'],['GET DISPLAY','DISPLAY'],['GET INPUT','INPUT'],['GET SAVER STATUS','SAVER'],['ART READY','ART']]){
-    if(!identity)break;try{await query(command,type);}catch(error){failed++;log(`${command}: ${error.message}`,'error','SERVICE');}
-  }message(failed?`Readouts refreshed with ${failed} failed requests. See the log.`:'Readouts refreshed.',failed?'warn':'info');}
-  finally{serviceBusy=false;controls();}
-});
-$('service-ping').onclick=action(()=>serviceTest('Ping','PING',p=>p.type==='PONG'));
-$('service-rgb').onclick=action(async()=>{if(confirm('Run a brief red/green/blue/white lamp test?'))await serviceTest('RGB routine','TEST RGB',p=>p.type==='TEST' && p.data.rgb!==undefined);});
-$('service-touch').onclick=action(async()=>{if(confirm('Keep fingers off all six pads. Recalibrate touch inputs now?'))await serviceTest('Touch calibration routine','TEST TOUCH',p=>p.type==='TEST' && p.data.input!==undefined);});
-$('live-input').onchange=()=>{clearInterval(inputTimer);if($('live-input').checked){inputTimer=setInterval(()=>{if(identity&&!transferring&&!serviceBusy)query('GET INPUT','INPUT').catch(error=>message(error.message,'error'));},1000);}};
-function downloadFile(name,contents,type){const url=URL.createObjectURL(new Blob([contents],{type})),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
-function environment(){return {userAgent:navigator.userAgent,language:navigator.language,languages:navigator.languages,timezone:Intl.DateTimeFormat().resolvedOptions().timeZone,timezoneOffsetMinutes:new Date().getTimezoneOffset(),secureContext:isSecureContext,webSerialAvailable:'serial' in navigator,online:navigator.onLine,origin:location.origin,viewport:{width:innerWidth,height:innerHeight},usb:usbInfo||null};}
-$('download-report').onclick=action(()=>{
-  diagnostics.flush();const report=buildReport({logger:diagnostics,environment:environment(),identity:latestIdentity,snapshots,tests:testResults,notes:$('support-notes').value,observations:{screen:$('observe-screen').value,lights:$('observe-lights').value,touch:$('observe-touch').value}});
-  downloadFile('happyjarz-support-'+new Date().toISOString().replaceAll(':','-')+'.json',JSON.stringify(report,null,2),'application/json');message('Support report downloaded. You can review it and send it to us.');
-});
-$('download-log').onclick=()=>{diagnostics.flush();downloadFile('happyjarz-session-log.txt',`HAPPY JARZ Web Studio 0.3.0\nExported ${new Date().toISOString()}\nOlder events dropped: ${diagnostics.dropped}\n`+JSON.stringify(environment(),null,2)+'\n\n'+diagnostics.entries.map(e=>`${e.at} ${e.level.toUpperCase()} ${e.kind} ${e.text}`).join('\n'),'text/plain');};
-$('clear-log').onclick=()=>{if(confirm('Delete retained diagnostic logs from this browser?')){diagnostics.clear();renderDiagnostics();}};
-$('log-filter').onchange=renderDiagnostics;
 window.addEventListener('error',event=>{const target=event.target;if(target!==window)log('Resource failed: '+target?.tagName,'error','RESOURCE');else log(`${event.message}\n${event.error?.stack||''}`,'error','JAVASCRIPT');},true);
 window.addEventListener('unhandledrejection',event=>log(event.reason?.stack||event.reason?.message||String(event.reason),'error','UNHANDLED'));
 window.addEventListener('pagehide',()=>diagnostics.flush());
 for(const name of ['error','warn']){const original=console[name].bind(console);console[name]=(...args)=>{const text=args.map(a=>{if(typeof a==='string')return a;if(a?.stack)return a.stack;try{return JSON.stringify(a);}catch{return '[unserializable console value]';}}).join(' ');log(text,name==='error'?'error':'warn','CONSOLE');original(...args);};}
-log(JSON.stringify(environment()),'info','SESSION');controls();renderArt();updateReadouts();void checkUpdates();
+const ctx={ $, ack, query, request, action, controls, message, log, diagnostics, snapshots, environment,
+  get identity(){return identity;},get latestIdentity(){return latestIdentity;},get transferring(){return transferring;},set transferring(value){transferring=value;},
+  get serviceBusy(){return serviceBusy;},set serviceBusy(value){serviceBusy=value;},get connecting(){return connecting;},get closing(){return closing;},
+  get deviceControls(){return deviceControls;},set deviceControls(value){deviceControls=value;},syncClock:()=>panels.setup.syncClock()
+};
+controls();
+for(const [id,file] of [['home','lights-control'],['setup','wifi-clock'],['display','display-input'],['profile','profile'],['art','art'],['service','service'],['updates','updates'],['bloopetz','bloopetz'],['dnd','dnd']]){
+  try{const {init}=await import(`./tabs/${file}.js`);panels[id]=init(ctx);}catch(error){log(`Panel ${id} failed to initialize: ${error.stack || error.message}`,'error','PANEL');document.querySelector(`[data-tab="${id}"]`).disabled=true;message(`The ${id} panel could not load. See the Service log.`,'error');}
+}
+booting=false;
+log(JSON.stringify(environment()),'info','SESSION');controls();
+
+function notifyPanels(method,payload){for(const [id,panel] of Object.entries(panels)){try{panel[method]?.(payload);}catch(error){log(`Panel ${id}: ${error.stack || error.message}`,'error','PANEL');}}}
+function environment(){return {userAgent:navigator.userAgent,language:navigator.language,languages:navigator.languages,timezone:Intl.DateTimeFormat().resolvedOptions().timeZone,timezoneOffsetMinutes:new Date().getTimezoneOffset(),secureContext:isSecureContext,webSerialAvailable:Boolean(navigator.serial?.requestPort),online:navigator.onLine,origin:location.origin,viewport:{width:innerWidth,height:innerHeight},usb:usbInfo||null};}

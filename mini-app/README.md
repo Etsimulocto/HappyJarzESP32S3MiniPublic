@@ -1,6 +1,6 @@
 # HAPPY JARZ Pi Mini app
 
-Current app version: `1.10.0` (see `VERSION`).
+Current app version: `1.10.1` (see `VERSION`).
 
 Launch the controller UI:
 
@@ -8,11 +8,19 @@ Launch the controller UI:
 python3 app.py
 ```
 
-Launch the optional USB plug watcher:
+Install one desktop autostart watcher from the repository root:
 
 ```bash
-python3 happyjarz_plug_watch.py
+sh mini-app/install_autostart.sh
 ```
+
+Log out and back in to start it, or start the watcher manually for this session:
+
+```bash
+/usr/bin/python3 mini-app/happyjarz_plug_watch.py
+```
+
+The watcher uses a single-instance lock. The controller and watcher request exclusive serial access on POSIX and retry discovery when another USB watcher has the port.
 
 Dependencies are Python 3, Tkinter, and pyserial. On Raspberry Pi OS, install Tkinter and pyserial with:
 

@@ -5,7 +5,7 @@ This repository is the single source home for the HAPPY JARZ **ESP32-S3 SuperMin
 ## Current source pair
 
 - Firmware: **0.17.13**
-- Pi Mini app: **1.9.1**
+- Pi Mini app: **1.9.2**
 - Board profile: **SIMPLE / ESP32-S3 SuperMini / 4 MB flash**
 - Source import: BloomCircuit commit `7412f7ef0c5faf84310b7c7fe1612f29f6bb84ba`
 

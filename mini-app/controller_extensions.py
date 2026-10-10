@@ -283,7 +283,8 @@ class HappyJarzApp(previous.HappyJarzApp):
             return
 
         super()._handle_line(line)
-        if line.startswith("HJ|IDENTITY|"):
+        if line.startswith("HJ|IDENTITY|") and "saver" not in self._identity_refreshes:
+            self._identity_refreshes.add("saver")
             self.after(150, lambda: self.link.send("GET SAVER STATUS"))
 
 

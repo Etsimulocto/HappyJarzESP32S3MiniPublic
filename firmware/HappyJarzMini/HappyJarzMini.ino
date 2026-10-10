@@ -1,4 +1,4 @@
-// HAPPY JARZ ESP32-S3 SuperMini firmware v0.18.3
+// HAPPY JARZ ESP32-S3 SuperMini firmware v0.18.4
 // SIMPLE profile: six capacitive inputs, 128x64 OLED, four APA106 lamps,
 // local games/screensavers, and the HAPPY JARZ USB control protocol.
 //
@@ -32,7 +32,7 @@
 #include "happyjarz_led_types.h"
 
 static const char *HJ_HW_VERSION = "V1";
-static const char *HJ_FW_VERSION = "0.18.3";
+static const char *HJ_FW_VERSION = "0.18.4";
 
 static String hjChipId() {
   char id[13];
@@ -302,6 +302,17 @@ static bool hjStartupCountdownPending = false;
 static bool hjStartupCountdownActive = false;
 static unsigned long hjStartupCountdownUntilMs = 0;
 static int hjStartupCountdownDays = -1;
+
+// Birthday visuals are transient; saved lamp colors/patterns stay authoritative.
+static bool hjBirthdayModeActive = false;
+static bool hjBirthdayLightsOverridden = false;
+static unsigned long hjBirthdayStartedMs = 0;
+static unsigned long hjBirthdayLastFrameMs = 0;
+static bool hjBirthdayGiftOpen = false;
+static unsigned long hjBirthdayGiftUntilMs = 0;
+static uint8_t hjBirthdayWish = 0;
+static int8_t hjBirthdayScene();
+static void oledRenderBirthdayScene(uint8_t scene);
 
 
 static const char *tzPosixFor(const String &name) {
@@ -635,19 +646,21 @@ static bool hjServiceBankPattern(unsigned long now, uint8_t bri) {
 static void servicePattern() {
   if (hjSleepActive) return;
   if (hjAccessoryPaused) return;
-  if (hjBirthdayToday()) {
+  if (hjBirthdayModeActive && !hjBirthdayLightsOverridden && patternName != "OFF") {
     unsigned long now = millis();
-    if (now - patternLastMs < 650UL) return;
-    patternLastMs = now;
-    uint8_t bri = safeBrightness(brightnessPercent);
-    Rgb birthdayFrame[LED_COUNT] = {
-      wheel((uint8_t)(patternStep * 11U)),
-      wheel((uint8_t)(patternStep * 11U + 64U)),
-      wheel((uint8_t)(patternStep * 11U + 128U)),
-      wheel((uint8_t)(patternStep * 11U + 192U))
-    };
-    writeFrame(birthdayFrame, bri);
-    patternStep++;
+    if (now - hjBirthdayLastFrameMs < 65UL) return;
+    hjBirthdayLastFrameMs = now;
+    Rgb birthdayFrame[LED_COUNT];
+    uint8_t hue = (uint8_t)((now - hjBirthdayStartedMs) / 100UL);
+    for (uint8_t i = 0; i < LED_COUNT; ++i) {
+      Rgb color = wheel((uint8_t)(hue + i * 64U));
+      uint8_t shimmer = triangle8((uint16_t)(now / 65UL + i * 37U), 160);
+      uint16_t level = 160U + (uint16_t)shimmer * 95U / 255U;
+      birthdayFrame[i] = {(uint8_t)((uint16_t)color.r * level / 255U),
+                          (uint8_t)((uint16_t)color.g * level / 255U),
+                          (uint8_t)((uint16_t)color.b * level / 255U)};
+    }
+    writeFrame(birthdayFrame, safeBrightness(brightnessPercent));
     return;
   }
   // HAPPYJARZ_FOUR_LAMP_PATTERN_ENGINE_V2
@@ -1127,6 +1140,7 @@ static void servicePattern() {
 }
 
 static void hjSetLed(uint8_t led,uint8_t r,uint8_t g,uint8_t b){
+  if (hjBirthdayModeActive) hjBirthdayLightsOverridden = true;
   patternName="SOLID"; resetPatternEngine();
   if (led < 1 || led > LED_COUNT) return;
   ledColor[led-1]={r,g,b}; showLeds();
@@ -1136,6 +1150,7 @@ static void hjSetBrightness(uint8_t p){
   if(patternName=="SOLID")showLeds();
 }
 static void hjSetPattern(const String &name){
+  if (hjBirthdayModeActive) hjBirthdayLightsOverridden = true;
   patternName=name; resetPatternEngine();
   if(name=="OFF")allOff(); else if(name=="SOLID")showLeds();
 }
@@ -2974,9 +2989,74 @@ static void oledRenderSaverTrippy() {
 
 static void oledRenderBirthday();
 
+
+static void oledRenderBirthdayScene(uint8_t scene) {
+  if (!oled) return;
+  unsigned long tick = (millis() - hjBirthdayStartedMs) / 150UL;
+  oled->setFont(u8g2_font_6x12_tr);
+  oledCentered(11, "HAPPY BIRTHDAY!");
+  oledCentered(23, ownerName.length() ? ownerName : "TO YOU");
+  if (scene == 0) {
+    // Cake, frosting, and three gently flickering candles.
+    oled->drawFrame(41, 39, 46, 13);
+    oled->drawBox(41, 37, 46, 3);
+    oled->drawLine(36, 53, 92, 53);
+    for (uint8_t i = 0; i < 3; ++i) {
+      int x = 52 + i * 12;
+      oled->drawLine(x, 31, x, 36);
+      oled->drawDisc(x + (int)((tick + i) % 2UL), 29, 1);
+    }
+    oled->setFont(u8g2_font_5x8_tf);
+    oledCentered(63, "MAKE A WISH!");
+  } else if (scene == 1) {
+    for (uint8_t i = 0; i < 5; ++i) {
+      int x = 17 + i * 23;
+      int y = 35 + (int)((tick + i * 3U) % 5UL);
+      oled->drawCircle(x, y, 5);
+      oled->drawLine(x, y + 5, x - 2, 52);
+    }
+    oled->setFont(u8g2_font_5x8_tf);
+    oledCentered(63, "TODAY IS YOUR DAY!");
+  } else if (scene == 2) {
+    for (uint8_t i = 0; i < 16; ++i) {
+      int x = 3 + (i * 29U + (uint32_t)tick * 3U) % 120U;
+      int y = 28 + (i * 11U + (uint32_t)tick * 2U) % 25U;
+      oled->drawPixel(x, y);
+      if (i % 3U == 0) oled->drawLine(x, y, x + 2, y + 2);
+    }
+    oled->setFont(u8g2_font_5x8_tf);
+    oledCentered(63, "A LITTLE EXTRA GLITTER!");
+  } else if (scene == 3) {
+    int bounce = (int)(tick % 3UL);
+    oled->drawFrame(49, 37 - bounce, 30, 17);
+    oled->drawFrame(46, 33 - bounce, 36, 5);
+    oled->drawLine(64, 33 - bounce, 64, 53 - bounce);
+    oled->drawCircle(59, 30 - bounce, 3);
+    oled->drawCircle(69, 30 - bounce, 3);
+    oled->setFont(u8g2_font_5x8_tf);
+    oledCentered(63, "PRESS A: OPEN YOUR GIFT");
+  } else {
+    static const char *wishLine1[] = {
+      "A YEAR FULL OF JOY", "KEEP YOUR SPARKLE", "YOU MAKE LIFE BRIGHT",
+      "MORE LITTLE WONDERS", "YOUR NEXT ADVENTURE", "A LITTLE EXTRA MAGIC"
+    };
+    static const char *wishLine2[] = {
+      "AND LITTLE WONDERS!", "THE WORLD NEEDS IT!", "JUST BY BEING YOU!",
+      "MORE HAPPY MOMENTS!", "STARTS WITH A WISH!", "JUST FOR YOU TODAY!"
+    };
+    uint8_t wish = hjBirthdayGiftOpen ? hjBirthdayWish : (uint8_t)((tick / 12UL) % 6UL);
+    oled->setFont(u8g2_font_5x8_tf);
+    oledCentered(37, wishLine1[wish]);
+    oledCentered(48, wishLine2[wish]);
+    oledCentered(63, hjBirthdayGiftOpen ? "WITH LOVE, HAPPY JARZ" : "CELEBRATE YOUR WAY");
+  }
+  oled->setFont(u8g2_font_6x12_tr);
+}
+
 static void oledRenderScreensaver() {
-  if (hjBirthdayToday()) {
-    oledRenderBirthday();
+  int8_t birthdayScene = hjBirthdayScene();
+  if (birthdayScene >= 0) {
+    oledRenderBirthdayScene((uint8_t)birthdayScene);
     return;
   }
   switch (hjScreensaverMode) {
@@ -3005,21 +3085,11 @@ static void oledCentered(uint8_t y, const String &text) {
   oled->drawUTF8(x, y, text.c_str());
 }
 
-static void oledRenderBirthday() {
-  if (!oled) return;
-  oled->setFont(u8g2_font_6x12_tr);
-  oledCentered(17, "HAPPY BIRTHDAY!");
-  oledCentered(37, ownerName.length() ? ownerName : "TO YOU");
-  oledCentered(57, "TODAY IS YOUR DAY");
-}
-
 static void oledRenderBirthdayCountdown(int days) {
   if (!oled) return;
   oled->setFont(u8g2_font_6x12_tr);
   if (days == 0) {
-    oledCentered(15, "HAPPY BIRTHDAY!");
-    oledCentered(33, ownerName.length() ? ownerName : "TO YOU");
-    oledCentered(51, "TODAY IS YOUR DAY");
+    oledRenderBirthdayScene(0);
   } else {
     oledCentered(13, "BIRTHDAY COUNTDOWN");
     oledCentered(29, ownerName.length() ? ownerName : "YOUR BIRTHDAY");
@@ -3038,6 +3108,53 @@ static void serviceStartupBirthdayCountdown() {
   hjStartupCountdownActive = true;
   hjStartupCountdownUntilMs = millis() + 5000UL;
   oledDirty = true;
+}
+
+
+static int8_t hjBirthdayScene() {
+  if (!hjBirthdayModeActive) return -1;
+  if (hjBirthdayGiftOpen) return 4;
+  // Five birthday scenes and four ordinary saver slots, ten seconds each.
+  uint8_t slot = (uint8_t)(((millis() - hjBirthdayStartedMs) / 10000UL) % 9UL);
+  return slot < 5 ? (int8_t)slot : -1;
+}
+
+static void hjBirthdayOpenGift() {
+  uint8_t next = (uint8_t)(esp_random() % 6U);
+  if (next == hjBirthdayWish) next = (uint8_t)((next + 1U) % 6U);
+  hjBirthdayWish = next;
+  hjBirthdayGiftOpen = true;
+  hjBirthdayGiftUntilMs = millis() + 6000UL;
+  oledDirty = true;
+}
+
+static void serviceBirthdayMode() {
+  bool today = hjBirthdayToday();
+  if (today != hjBirthdayModeActive) {
+    hjBirthdayModeActive = today;
+    hjBirthdayLightsOverridden = false;
+    hjBirthdayGiftOpen = false;
+    hjBirthdayStartedMs = millis();
+    hjBirthdayLastFrameMs = millis() - 65UL;
+    resetPatternEngine();
+    oledDirty = true;
+    if (today) {
+      // Time may arrive over USB/Wi-Fi after boot. Greet once it is valid.
+      hjStartupCountdownPending = true;
+    } else {
+      if (hjStartupCountdownDays == 0) hjStartupCountdownActive = false;
+      // Restore SOLID explicitly: its normal service otherwise sends no frame.
+      if (!hjAccessoryPaused && !hjSleepActive) {
+        if (patternName == "SOLID") showLeds();
+        else if (patternName == "OFF") allOff();
+      }
+    }
+    if (Serial) Serial.println(today ? "HJ|BIRTHDAY|active=1" : "HJ|BIRTHDAY|active=0");
+  }
+  if (hjBirthdayGiftOpen && (long)(millis() - hjBirthdayGiftUntilMs) >= 0) {
+    hjBirthdayGiftOpen = false;
+    oledDirty = true;
+  }
 }
 
 static String compactRgb(const Rgb &c) {
@@ -3681,7 +3798,7 @@ static void serviceOled() {
     oledDirty = true;
   }
 
-  unsigned long cadence = hjScreensaverActive ? 45UL : 250UL;
+  unsigned long cadence = (hjScreensaverActive || (hjStartupCountdownActive && hjStartupCountdownDays == 0)) ? 45UL : 250UL;
   if (!oledDirty && now - oledLastDrawMs < cadence) return;
   oledLastDrawMs = now;
   oledDirty = false;
@@ -3965,6 +4082,10 @@ static void serviceInputs() {
 
   if (hjScreensaverActive) {
     if (q[IN_B] && !latched[IN_B]) hjScreensaverExit();
+    else if (q[IN_A] && !latched[IN_A] && hjBirthdayModeActive &&
+             (hjBirthdayScene() == 3 || hjBirthdayGiftOpen)) {
+      hjBirthdayOpenGift();
+    }
     else if (q[IN_RIGHT] && !latched[IN_RIGHT]) hjScreensaverNext();
     else if (q[IN_LEFT] && !latched[IN_LEFT]) hjScreensaverPrev();
     else if (hjScreensaverMode == 1) {
@@ -4389,6 +4510,7 @@ void loop(){
   serviceAccessoryPause();
   hjServiceLowBattery();
   serialPoll();
+  serviceBirthdayMode();
   serviceInputs();
   hjServiceSleep();
   servicePattern();

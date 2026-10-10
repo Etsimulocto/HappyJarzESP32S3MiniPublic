@@ -46,6 +46,7 @@ class HappyJarzApp(previous.HappyJarzApp):
         self._profile_store_path = Path.home() / ".happyjarz" / "device_profiles.json"
         self._device_profiles = self._load_profile_store()
         self._active_chip_id = ""
+        self._profile_pending = None
         self._build_profile_tab()
         self._build_art_tab()
         self.after(500, self._refresh_birthday_countdown)
@@ -181,28 +182,34 @@ class HappyJarzApp(previous.HappyJarzApp):
         except OSError as exc:
             self.profile_state_var.set(f"Could not save the Pi profile: {exc}")
             return
-        self.link.send(f"SET PROFILE {birthday or '--'} {owner}")
+        if not self.link.send(f"SET PROFILE {birthday or '--'} {owner}"):
+            self.profile_state_var.set("Saved on the Pi; Jar disconnected before the profile could be sent.")
+            return
+        self._profile_pending = "save"
         timezone = self.timezone_var.get().strip() or "America/Chicago"
         self.link.send(f"SET TIMEZONE {timezone}")
         self.link.send(f"SET CLOCK UNIX {int(time.time())}")
         self._refresh_birthday_countdown()
-        self.profile_state_var.set("Saved on the Pi and Jar; clock synchronized.")
+        self.profile_state_var.set("Profile sent; waiting for Jar confirmation.")
 
     def _clear_owner_profile(self):
         if not self._active_chip_id or not self.link.ser or not self.link.ser.is_open:
             self.profile_state_var.set("Connect the Jar before clearing its profile.")
             return
+        if not self.link.send("CLEAR PROFILE"):
+            self.profile_state_var.set("Jar disconnected; profile was not cleared.")
+            return
+        self._profile_pending = "clear"
         self._device_profiles.pop(self._active_chip_id, None)
         try:
             self._write_profile_store()
         except OSError as exc:
             self.profile_state_var.set(f"Could not update the Pi profile: {exc}")
             return
-        self.link.send("CLEAR PROFILE")
         self.profile_owner_var.set("")
         self.profile_birthday_var.set("")
         self._refresh_birthday_countdown()
-        self.profile_state_var.set("Profile cleared from the Pi and Jar.")
+        self.profile_state_var.set("Clear request sent; waiting for Jar confirmation.")
 
     def _handle_owner_profile(self, fields):
         chip = fields.get("chip", self._active_chip_id)
@@ -347,6 +354,26 @@ class HappyJarzApp(previous.HappyJarzApp):
 
         if line.startswith("HJ|PROFILE|"):
             self._handle_owner_profile(self._parse_fields(line))
+            self._log(f"RX  {line}")
+            return
+
+        if line == "HJ|ACK|command=SET PROFILE":
+            if self._profile_pending == "save":
+                self.profile_state_var.set("Profile saved on the Pi and Jar; clock sync sent.")
+                self._profile_pending = None
+            self._log(f"RX  {line}")
+            return
+
+        if line == "HJ|ACK|command=CLEAR PROFILE":
+            if self._profile_pending == "clear":
+                self.profile_state_var.set("Profile cleared from the Pi and Jar.")
+                self._profile_pending = None
+            self._log(f"RX  {line}")
+            return
+
+        if line.startswith("HJ|ERR|") and self._profile_pending:
+            self.profile_state_var.set(f"Jar rejected profile command: {self._parse_fields(line).get('message', 'unknown error')}")
+            self._profile_pending = None
             self._log(f"RX  {line}")
             return
 

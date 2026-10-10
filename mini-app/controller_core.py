@@ -41,7 +41,11 @@ def _read_app_version() -> str:
 APP_VERSION = _read_app_version()
 BAUD = 115200
 SCAN_SECONDS = 1.0
-HANDSHAKE_TIMEOUT = 0.45
+# Opening the ESP32-S3 CDC/JTAG port can reset the chip. The Mini takes about
+# 1.5 seconds to calibrate its touch inputs before it starts answering HELLO,
+# so keep DTR/RTS inactive and allow enough time for setup to finish.
+HANDSHAKE_TIMEOUT = 4.0
+HELLO_RETRY_SECONDS = 0.25
 LOG_DIR = Path.home() / ".happyjarz"
 LOG_FILE = LOG_DIR / "controller.log"
 
@@ -74,23 +78,27 @@ class JarSerial:
 
     def _scan_loop(self):
         while self.running:
-            if self.ser is None or not self.ser.is_open:
-                self._try_ports()
-            time.sleep(SCAN_SECONDS)
-
-    def _try_ports(self):
-        for port in list_ports.comports():
-            if not self.running or self.ser is not None:
-                return
-            try:
-                probe = serial.Serial(port.device, BAUD, timeout=HANDSHAKE_TIMEOUT, write_timeout=0.5)
-                time.sleep(0.12)
+            if self.ser is None or not self                probe = serial.Serial(
+                    port.device,
+                    BAUD,
+                    timeout=0.10,
+                    write_timeout=0.5,
+                    dsrdtr=False,
+                    rtscts=False,
+                    dtr=False,
+                    rts=False,
+                )
+                time.sleep(0.10)
                 probe.reset_input_buffer()
-                probe.write(b"HELLO\n")
-                probe.flush()
-                deadline = time.time() + HANDSHAKE_TIMEOUT
+                deadline = time.monotonic() + HANDSHAKE_TIMEOUT
+                next_hello = 0.0
                 identity = None
-                while time.time() < deadline:
+                while time.monotonic() < deadline:
+                    now = time.monotonic()
+                    if now >= next_hello:
+                        probe.write(b"HELLO\\n")
+                        probe.flush()
+                        next_hello = now + HELLO_RETRY_SECONDS
                     line = probe.readline().decode("utf-8", errors="replace").strip()
                     if line.startswith("HJ|IDENTITY|"):
                         identity = line

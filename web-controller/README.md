@@ -1,4 +1,4 @@
-# HAPPY JARZ Web Studio — draft 0.4
+# HAPPY JARZ Web Studio — draft 0.5
 
 A static USB browser controller for the existing SuperMini SIMPLE protocol. No backend, account, Python installation, or paid domain required for website users. This is an initial implementation, not a hardware-verified replacement for the Mini app.
 
@@ -21,6 +21,20 @@ A static USB browser controller for the existing SuperMini SIMPLE protocol. No b
 - Existing screensaver enter/next/exit commands.
 - Two-frame 128×64 XBM pixel editor, preview, validated JSON import/export and ACK-gated upload to one of 50 slots. Upload replaces the selected slot after confirmation. The draft never formats or trims the gallery.
 - Release catalog check with explicit “not published” state. Firmware installation remains disabled. No firmware or partition changes accompany this draft.
+
+## Monday + live BloomSaver background
+
+Monday hosts the studio with a dark pink/teal/yellow collage skin, bold system-font headings, monospace instrument readouts and a welcome sticker. The optional pattern-tinted control theme now starts off so Monday's default branding remains visible.
+
+The full-window backdrop is the actual **BloomSaver — Glitter** engine from `Etsimulocto/BloomCircuit/BloomSaver`, copied locally under `bloomsaver/`. It fills the margins around the responsive controller. **Edit live background** opens the existing 22-slider laboratory with symbols, moving emitters, attractors/repulsors, drift, swirl, noise, bursts, glow, trails, color/background fade, seed, randomize/mutate and saved presets. **Done editing** or Escape returns to the controller without restarting the simulation. The engine runs in a same-origin iframe; its canvas palette override cannot affect the controller OLED/art canvases, and its keyboard shortcuts do not intercept main-page typing or gamepad controls.
+
+Embedded defaults are 180 particles, reduced glow, capped pixel density and approximately 30 FPS. Pause/resume is available. Reduced-motion preference starts paused unless the user has explicitly saved a setting; hidden pages skip painting. Current slider settings, randomize/mutate/seed/load results and named presets persist locally when storage permits. Saved settings are range-clamped on load. Controls remain editable and do not auto-cycle presets. Performance with maximum particle/glow settings still needs testing on actual Pi/mobile hardware.
+
+**MATCH JAR COLORS ON START** retains the original optional startup palette handoff from live LED_FRAME colors; it does not continuously overwrite user edits. The palette bridge accepts only same-origin parent messages. Background errors are forwarded into Service diagnostics.
+
+**Monday's Corner** provides a six-image wall and click-to-open Suno song/playlist/share link. Add Monday's actual art and music using its controls. Local images are resized to at most 1000 pixels and compressed; bounded local storage has an explicit session-only fallback. Nothing uploads automatically. The initial media list is empty because no approved Monday image or exact song link was supplied.
+
+For a gallery/song visible to every website visitor, place PNG/JPEG/WebP files under `web-controller/assets/` and edit `monday-media.json` with `./assets/filename.webp` paths, a title and the HTTPS Suno link. Local customizations override published defaults on that browser. Music opens Suno in a new tab; it does not autoplay or store audio in GitHub. No external font service, paid asset service, backend or new subscription was added.
 
 ## Panel code layout
 
@@ -97,12 +111,12 @@ An optional Windows/Pi helper can later launch this site on insertion. It must r
 
 ## Validation and remaining work
 
-Ten Node tests passed: nine protocol/diagnostics/light-control tests plus an integration test executing the actual panel modules against a minimal DOM and simulated serial firmware. The logic tests cover birthday/name validation, two-frame packing, chunk limits, import validation, protocol/version parsing, diagnostic redaction/reload, bounded retention, blocked/full storage and support report contents, RGB validation, the 50% brightness ceiling, capability filtering, standard gamepad mapping and theme contrast. JavaScript syntax checks passed. Browser smoke tests with simulated serial hardware have been extended for Base/Live readouts, capability-gated keys, White/Off actions, opt-in keyboard input, ACK sequencing, rejected storage, disconnect cleanup and UI operation, but could not be executed in the development environment because the Chromium download failed. The module integration test passed for nine-tab mounting, shared USB connect/reconnect, capability-gated keys, typing/opt-in keyboard behavior, White/Off/pattern/brightness, Wi-Fi credential handling, alarm/timer, display/marquee, clock/profile saving, complete art transfer, Service readout/RGB/touch/ping routines, redacted report export and device-error recovery. This minimal DOM does not render the page. Browser rendering and real hardware behavior remain unverified. These tests do not prove real USB reset behavior, drivers, touch timing, clock behavior, screen byte layout or flash preservation. Hardware trials on Pi and Windows are required. The Mini app remains the established controller.
+Twelve Node tests passed: nine protocol/diagnostics/light-control tests plus an integration test executing the actual panel modules against a minimal DOM and simulated serial firmware. The logic tests cover birthday/name validation, two-frame packing, chunk limits, import validation, protocol/version parsing, diagnostic redaction/reload, bounded retention, blocked/full storage and support report contents, RGB validation, the 50% brightness ceiling, capability filtering, standard gamepad mapping and theme contrast. JavaScript syntax checks passed. Browser smoke tests with simulated serial hardware have been extended for Base/Live readouts, capability-gated keys, White/Off actions, opt-in keyboard input, ACK sequencing, rejected storage, disconnect cleanup and UI operation, but could not be executed in the development environment because the Chromium download failed. The module integration test passed for nine-tab mounting, shared USB connect/reconnect, capability-gated keys, typing/opt-in keyboard behavior, White/Off/pattern/brightness, Wi-Fi credential handling, alarm/timer, display/marquee, clock/profile saving, complete art transfer, Service readout/RGB/touch/ping routines, redacted report export and device-error recovery. Monday song saving and rejection of unsafe URLs also passed. A separate VM test executed the copied BloomSaver engine with all 22 controls and verified pause/resume, editing messages, foreign-message rejection and state saving; media validation checks cover Suno links and image sources. These simulated environments do not render the page. Browser rendering and real hardware behavior remain unverified. These tests do not prove real USB reset behavior, drivers, touch timing, clock behavior, screen byte layout or flash preservation. Hardware trials on Pi and Windows are required. The Mini app remains the established controller.
 
 To run the logic and module integration tests from the repository root:
 
 ```bash
-node --test tests/web-studio.test.mjs tests/web-panels.test.mjs
+node --test tests/web-studio.test.mjs tests/web-panels.test.mjs tests/bloomsaver.test.mjs
 ```
 
 For the browser test, install Playwright and its Chromium browser in `tests/`, then run `node tests/browser-smoke.mjs` from the repository root. The browser test simulates the serial device and never accesses a real jar.

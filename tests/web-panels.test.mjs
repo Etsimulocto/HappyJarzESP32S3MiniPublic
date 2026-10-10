@@ -10,7 +10,7 @@ test('all panels mount and share one USB session through controls, reports and r
   constructor(tag='div'){this.tagName=tag.toUpperCase();this.dataset={};this.style={setProperty(){},removeProperty(){}};this.options=[];this.children=[];this.value='';this.hidden=false;this.disabled=false;this.textContent='';this.checked=false;this.classes=new Set();this.classList={add:v=>this.classes.add(v),remove:v=>this.classes.delete(v),toggle:(v,on)=>on?this.classes.add(v):this.classes.delete(v)};}
   set id(value){this._id=value;elements.set(value,this);}get id(){return this._id;}
   set innerHTML(value){parse(value);}append(...children){this.children.push(...children);}replaceChildren(...children){this.children=children;}add(option){this.options.push(option);}
-  setAttribute(key,value){this[key]=value;}matches(selector){return ['INPUT','TEXTAREA','SELECT'].includes(this.tagName);}
+  addEventListener(){}focus(){doc.activeElement=this;}setAttribute(key,value){this[key]=value;}matches(selector){return ['INPUT','TEXTAREA','SELECT'].includes(this.tagName);}
   setPointerCapture(){}getBoundingClientRect(){return {left:0,top:0,width:128,height:64};}
   getContext(){return {createImageData:(w,h)=>({data:new Uint8ClampedArray(w*h*4)}),putImageData:image=>{this.pixels=image.data;}};}
   click(){if(this.download)downloads.push(this);else return this.onclick?.({preventDefault(){}});}
@@ -19,7 +19,7 @@ test('all panels mount and share one USB session through controls, reports and r
  parse(html);for(const id of ['pattern-theme'])elements.get(id).checked=true;elements.get('log-filter').value='all';
  for(const id of ['timezone'])elements.get(id).options=[{value:'America/Chicago'}];elements.get('timezone').value='America/Chicago';
  const find=id=>{const el=elements.get(id);if(!el)throw Error('Missing DOM control '+id);return el;};
- const doc={getElementById:find,createElement:tag=>new Element(tag),activeElement:null,documentElement:new Element(),hasFocus:()=>true,
+ const doc={addEventListener(){},getElementById:find,createElement:tag=>new Element(tag),activeElement:null,documentElement:new Element(),hasFocus:()=>true,
  querySelectorAll(selector){return [...elements.values()].filter(el=>selector==='.panel'?el.class==='panel':selector.startsWith('[data-')?Object.hasOwn(el.dataset,selector.slice(6,-1)):false);},
  querySelector(selector){const key=selector.match(/data-tab="([^"]+)"/)[1];return this.querySelectorAll('[data-tab]').find(el=>el.dataset.tab===key);}};
  const values=new Map(),storage={getItem:k=>values.get(k),setItem:(k,v)=>values.set(k,v)};
@@ -34,7 +34,7 @@ test('all panels mount and share one USB session through controls, reports and r
  const key=prefix || (cmd.startsWith('SET ALARM ') && !/SET ALARM (ON|OFF)$/.test(cmd)?'SET ALARM':null) || (cmd.startsWith('SET LED')?cmd.split(' ').slice(0,3).join(' '):cmd.startsWith('SET PROFILE')?'SET PROFILE':cmd.startsWith('SET CLOCK UNIX')?'SET CLOCK UNIX':cmd.startsWith('SET TIMEZONE')?'SET TIMEZONE':cmd.startsWith('SET PATTERN')?'SET PATTERN':cmd.startsWith('SET BRIGHTNESS')?'SET BRIGHTNESS':cmd.startsWith('KEY ')?'KEY':cmd);
  emit('HJ|ACK|command='+key);if(cmd==='STREAM LED ON')emit(frame);if(cmd==='STREAM TOUCH ON')emit(responses['GET INPUT']);}
  }}});},setSignals:async()=>{},close:async()=>{closeCount++;}})};
- const saved=new Map();for(const [key,value] of Object.entries({document:doc,window:{addEventListener:(key,fn)=>{listeners[key]=fn;}},navigator:{serial,getGamepads:()=>[],language:'en-US',languages:['en-US'],online:true,userAgent:'Node simulated DOM'},Option:class{constructor(text,value){this.text=text;this.value=value;}},localStorage:storage,isSecureContext:true,location:{origin:'http://localhost:8080'},innerWidth:1200,innerHeight:900,requestAnimationFrame:()=>0,confirm:()=>true,fetch:async()=>({ok:true,json:async()=>({schema:1,releases:[]})})})){
+ const saved=new Map();for(const [key,value] of Object.entries({document:doc,window:{addEventListener:(key,fn)=>{const previous=listeners[key];listeners[key]=previous?event=>{previous(event);fn(event);}:fn;}},navigator:{serial,getGamepads:()=>[],language:'en-US',languages:['en-US'],online:true,userAgent:'Node simulated DOM'},Option:class{constructor(text,value){this.text=text;this.value=value;}},localStorage:storage,isSecureContext:true,location:{origin:'http://localhost:8080'},innerWidth:1200,innerHeight:900,matchMedia:()=>({matches:false}),requestAnimationFrame:()=>0,confirm:()=>true,fetch:async()=>({ok:true,json:async()=>({schema:1,releases:[]})})})){
  saved.set(key,Object.getOwnPropertyDescriptor(globalThis,key));Object.defineProperty(globalThis,key,{value,writable:true,configurable:true});}
  const oldError=console.error,oldWarn=console.warn;
  try{
@@ -55,11 +55,13 @@ test('all panels mount and share one USB session through controls, reports and r
  find('owner').value='Cat';find('birth-month').value='06';find('birth-day').value='11';await find('profile-form').onsubmit();assert.ok(sent.includes('SET PROFILE 06-11 Cat'));assert.ok(sent.includes('SET TIMEZONE America/Chicago'));
  await find('upload-art').click();assert.ok(sent.includes('ART END 0'));assert.equal(find('upload-art').disabled,false);
  await doc.querySelector('[data-tab="service"]').click();await find('refresh-service').click();assert.equal(find('message').textContent,'Readouts refreshed.');await find('service-rgb').click();await find('service-touch').click();await find('service-ping').click();assert.match(find('service-tests').textContent,/Ping: response received/);
- find('support-notes').value='Screen blank after switch';await find('download-report').click();const report=JSON.parse(await (await oldFetch(downloads.at(-1).href)).text());assert.equal(report.identity.serial,'HJ-TEST');assert.equal(report.userNotes,'Screen blank after switch');assert.equal(report.appVersion,'0.4.0');assert.ok(!JSON.stringify(report).includes('Quarter'));assert.ok(!JSON.stringify(report).includes('secretword'));assert.ok(!JSON.stringify(report).includes('PrivateNetwork'));assert.equal(report.tests.length,3);
+ find('support-notes').value='Screen blank after switch';await find('download-report').click();const report=JSON.parse(await (await oldFetch(downloads.at(-1).href)).text());assert.equal(report.identity.serial,'HJ-TEST');assert.equal(report.userNotes,'Screen blank after switch');assert.equal(report.appVersion,'0.5.0');assert.ok(!JSON.stringify(report).includes('Quarter'));assert.ok(!JSON.stringify(report).includes('secretword'));assert.ok(!JSON.stringify(report).includes('PrivateNetwork'));assert.equal(report.tests.length,3);
  rejectNext=true;await find('apply-pattern').click();assert.match(find('message').textContent,/Test rejection/);await find('service-ping').click();assert.match(find('message').textContent,/Ping completed/);
  await find('disconnect').onclick();await new Promise(resolve=>setTimeout(resolve,10));assert.equal(closeCount,1);assert.ok(sent.includes('STREAM TOUCH OFF'));assert.equal(find('key-a').disabled,true);
  await find('connect').onclick();assert.equal(openCount,2);assert.match(find('message').textContent,/Your jar is ready/);await find('disconnect').onclick();await new Promise(resolve=>setTimeout(resolve,10));assert.equal(closeCount,2);
- assert.ok(!find('service-log').textContent.includes('PANEL'),find('service-log').textContent);
+ assert.ok(!find('service-log').textContent.includes('PANEL'),find('service-log').textContent);assert.ok(!find('service-log').textContent.includes('BACKGROUND'),find('service-log').textContent);
+ find('monday-song-url').value='https://suno.com/song/test-song';find('monday-song-name').value='Monday online';await find('monday-song-form').onsubmit();assert.equal(find('monday-listen').href,'https://suno.com/song/test-song');assert.equal(find('monday-listen').hidden,false);
+ find('monday-song-url').value='javascript:alert(1)';await find('monday-song-form').onsubmit();assert.equal(find('monday-listen').href,'https://suno.com/song/test-song');
  }finally{await find('disconnect').onclick();await new Promise(resolve=>setTimeout(resolve,1100));console.error=oldError;console.warn=oldWarn;for(const [key,descriptor] of saved){if(descriptor)Object.defineProperty(globalThis,key,descriptor);else delete globalThis[key];}}
 });
 const oldFetch=globalThis.fetch;

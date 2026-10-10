@@ -67,3 +67,11 @@ test('pattern theme freezes a useful palette and ignores dark/off frames',()=>{
   for(const surface of ['bg','panel'])assert.ok((lum(theme.text)+.05)/(lum(theme[surface])+.05)>=4.5);
   assert.deepEqual(patternTheme([frame,frame]),theme);
 });
+
+import {songLink,imageLink} from '../web-controller/media.mjs';
+test('Monday media accepts Suno sharing links and rejects executable/foreign URLs',()=>{
+ assert.equal(songLink(' https://suno.com/song/a-b '),'https://suno.com/song/a-b');assert.equal(songLink('https://suno.com/playlist/abc'),'https://suno.com/playlist/abc');assert.equal(songLink(''),'');
+ for(const link of ['javascript:alert(1)','http://suno.com/song/abc','https://suno.com.evil.test/song/abc','https://user:secret@suno.com/song/abc','https://suno.com/'])assert.throws(()=>songLink(link));
+ assert.equal(imageLink('./assets/monday.webp'),'./assets/monday.webp');assert.equal(imageLink('data:image/webp;base64,YWJj'),'data:image/webp;base64,YWJj');
+ for(const link of ['https://evil.test/tracker.png','./assets/../secret','data:image/svg+xml;base64,YWJj'])assert.throws(()=>imageLink(link));
+});

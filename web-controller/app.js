@@ -1,5 +1,7 @@
 import { parseLine } from './protocol.mjs';
 import { DiagnosticLog } from './diagnostics.mjs';
+import { init as initMonday } from './monday.js';
+import { init as initBackground } from './background.js';
 const $ = id => document.getElementById(id);
 let storage; try { storage=localStorage; } catch {}
 const diagnostics=new DiagnosticLog({storage}), snapshots={};
@@ -141,6 +143,8 @@ controls();
 for(const [id,file] of [['home','lights-control'],['setup','wifi-clock'],['display','display-input'],['profile','profile'],['art','art'],['service','service'],['updates','updates'],['bloopetz','bloopetz'],['dnd','dnd']]){
   try{const {init}=await import(`./tabs/${file}.js`);panels[id]=init(ctx);}catch(error){log(`Panel ${id} failed to initialize: ${error.stack || error.message}`,'error','PANEL');document.querySelector(`[data-tab="${id}"]`).disabled=true;message(`The ${id} panel could not load. See the Service log.`,'error');}
 }
+try{panels.monday=initMonday(ctx);}catch(error){log(error.message,'error','MONDAY');}
+try{panels.background=initBackground(ctx);}catch(error){log(error.message,'error','BACKGROUND');}
 booting=false;
 log(JSON.stringify(environment()),'info','SESSION');controls();
 

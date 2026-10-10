@@ -1,46 +1,34 @@
-# HAPPY JARZ firmware build status
+# HAPPY JARZ ESP32-S3 Mini build status
 
 **Updated:** 2026-10-10  
-**Repository role:** public firmware source of truth  
-**Current main-branch firmware release:** none published here yet
+**Board:** ESP32-S3 SuperMini  
+**Current release in this repository:** none published yet
 
-## Known-good reference
+## Known-good Mini firmware reference
 
 - **Firmware:** v0.17.13
-- **Source currently recorded in:** `Etsimulocto/BloomCircuit`, branch `feature/happyjarz-platform`, commit `7412f7ef0c5faf84310b7c7fe1612f29f6bb84ba`
-- **Build path there:** a base sketch plus a multi-script staging/patch pipeline
-- **Verified target:** ESP32-S3 SuperMini prototype
-- **Not verified for:** full-size ESP32-S3 N16R8 board
+- **Source location:** `Etsimulocto/BloomCircuit`, branch `feature/happyjarz-platform`
+- **Source commit:** `7412f7ef0c5faf84310b7c7fe1612f29f6bb84ba`
+- **Build method:** base sketch plus the Happy Jarz staging/patch scripts
+- **Target verified:** ESP32-S3 SuperMini
 
-This is a historical reference, not a flash instruction. The patch-based build is not yet copied here as one self-contained, reproducible release artifact. Do not treat the old sketch filename or app version as proof of the firmware target.
+The firmware was tested on the Mini. This new repo is the place for its clean, self-contained release copy; it has not been copied here yet, so there is no flashable "latest" sketch here today. The Pi controller app version is tracked separately and is not the ESP32 firmware version.
 
-## Full-size N16R8 migration
+## Boot-screen report
 
-The hardware reference recorded October 9 says the N16R8 migration is incomplete: OLED operation and pin behavior have not been verified on that board, the battery path is unresolved, and the 16 MB flash / 8 MB PSRAM Arduino settings need deliberate selection. Therefore there is no approved N16R8 firmware release in this repository yet.
+The ESP32-S3 Mini is reported stuck on its boot screen. The Pi app split/refresh command updates host files and watchers; it does not flash the ESP32. The reported split did not upload firmware.
 
-## Boot-screen incident
+Before changing firmware, capture the Mini's serial output at 115200 baud from reset with the HAPPY JARZ and BloomPetz watchers stopped. Also note the exact screen text/pattern and which USB-C port is in use. Keep the current flash intact; do not run `erase_flash`.
 
-The board has been reported stuck on its boot screen. The Pi app split/refresh process updates host files and watchers; it does not flash the ESP32. No firmware flash should be attempted until the physical board model, serial port, and startup output are identified.
+## Clean release checklist
 
-For diagnosis, capture:
+A build becomes the single current release here after it has:
 
-- the board model printed on the PCB (SuperMini or full-size N16R8)
-- which USB-C connector is connected (UART or USB)
-- the exact screen text/pattern and whether it changes after reset
-- serial output at 115200 baud from reset, with Pi app watchers stopped
-- whether the board still responds to the ROM bootloader / `esptool chip-id`
+1. one self-contained sketch with the version embedded;
+2. documented ESP32-S3 Mini board and Arduino settings;
+3. a clean compile from the documented steps;
+4. a successful upload and reboot on the Mini;
+5. a serial identity/version check plus OLED, touch, and lamp smoke tests;
+6. matching release notes and a Git tag.
 
-Do not run `erase_flash`. Preserve the current flash until its state is known.
-
-## Promotion checklist
-
-A firmware build becomes the single current build on `main` only after it has:
-
-1. one self-contained sketch (no hidden version-injection or patch chain);
-2. explicit target board and Arduino settings;
-3. a clean compile from documented steps;
-4. a successful upload and reboot on the named physical board;
-5. a serial identity/version check and basic OLED, touch, and lamp tests;
-6. a tagged release and matching build notes.
-
-Until that checklist is complete, this repository intentionally has no flashable "latest" build.
+Until then, v0.17.13 remains a verified reference build in the controller repository and this repo intentionally publishes no flashable release.

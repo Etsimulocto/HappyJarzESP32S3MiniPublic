@@ -251,6 +251,7 @@ class HappyJarzApp(tk.Tk):
         self.configure(bg=BG)
 
         LOG_DIR.mkdir(parents=True, exist_ok=True)
+        self._identity_refreshes: set[str] = set()
         self.events: queue.Queue = queue.Queue()
         self.link = JarSerial(self.events)
 
@@ -1440,11 +1441,13 @@ class HappyJarzApp(tk.Tk):
             while True:
                 kind, payload = self.events.get_nowait()
                 if kind == "connected":
+                    self._identity_refreshes.clear()
                     self.connection_var.set(f"CONNECTED  •  {payload['port']}")
                     self.status_pill.configure(bg=GOOD_BG, fg=GOOD_FG)
                     self._log(f"Connected on {payload['port']}")
                     self._handle_line(payload["identity"])
                 elif kind == "disconnected":
+                    self._identity_refreshes.clear()
                     self.connection_var.set("WAITING FOR JAR")
                     self.status_pill.configure(bg=WAIT_BG, fg=WAIT_FG)
                     self._log(f"Disconnected from {payload}; scanning continues")

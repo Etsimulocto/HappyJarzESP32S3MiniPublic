@@ -20,8 +20,9 @@ from serial.tools import list_ports
 
 BAUD = 115200
 PROBE_TIMEOUT = 0.25
-HANDSHAKE_SECONDS = 2.0
-BOOT_SETTLE_SECONDS = 0.20
+HANDSHAKE_SECONDS = 4.0
+BOOT_SETTLE_SECONDS = 0.10
+HELLO_RETRY_SECONDS = 0.25
 SCAN_SECONDS = 0.20
 RETRY_SECONDS = 1.0
 PORT_RELEASE_SECONDS = 0.30
@@ -114,17 +115,26 @@ def port_generation(port_name: str):
 
 def identify_happy_jar(port_name: str) -> str | None:
     try:
-        with serial.Serial(port_name, BAUD, timeout=PROBE_TIMEOUT, write_timeout=0.5) as ser:
+        with serial.Serial(
+            port_name,
+            BAUD,
+            timeout=PROBE_TIMEOUT,
+            write_timeout=0.5,
+            dsrdtr=False,
+            rtscts=False,
+            dtr=False,
+            rts=False,
+        ) as ser:
             time.sleep(BOOT_SETTLE_SECONDS)
             ser.reset_input_buffer()
-            deadline = time.time() + HANDSHAKE_SECONDS
+            deadline = time.monotonic() + HANDSHAKE_SECONDS
             next_hello = 0.0
-            while time.time() < deadline:
-                now = time.time()
+            while time.monotonic() < deadline:
+                now = time.monotonic()
                 if now >= next_hello:
                     ser.write(b"HELLO\n")
                     ser.flush()
-                    next_hello = now + 0.25
+                    next_hello = now + HELLO_RETRY_SECONDS
                 line = ser.readline().decode("utf-8", errors="replace").strip()
                 if line.startswith("HJ|IDENTITY|"):
                     return line

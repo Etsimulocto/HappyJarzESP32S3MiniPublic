@@ -1,4 +1,4 @@
-// HAPPY JARZ ESP32-S3 SuperMini firmware v0.18.2
+// HAPPY JARZ ESP32-S3 SuperMini firmware v0.18.3
 // SIMPLE profile: six capacitive inputs, 128x64 OLED, four APA106 lamps,
 // local games/screensavers, and the HAPPY JARZ USB control protocol.
 //
@@ -32,7 +32,7 @@
 #include "happyjarz_led_types.h"
 
 static const char *HJ_HW_VERSION = "V1";
-static const char *HJ_FW_VERSION = "0.18.2";
+static const char *HJ_FW_VERSION = "0.18.3";
 
 static String hjChipId() {
   char id[13];
@@ -3029,6 +3029,7 @@ static void oledRenderBirthdayCountdown(int days) {
 }
 
 static void serviceStartupBirthdayCountdown() {
+  if (hjAccessoryPaused || hjSleepActive || !oledReady) return;
   if (!hjStartupCountdownPending || !hjValidBirthday(ownerBirthday)) return;
   if (!clockSynced()) return;
   hjStartupCountdownDays = hjBirthdayCountdownDays();
@@ -3036,6 +3037,7 @@ static void serviceStartupBirthdayCountdown() {
   if (hjStartupCountdownDays < 0) return;
   hjStartupCountdownActive = true;
   hjStartupCountdownUntilMs = millis() + 5000UL;
+  oledDirty = true;
 }
 
 static String compactRgb(const Rgb &c) {
@@ -3098,6 +3100,8 @@ static void hjAccessoryPauseEnter() {
   if (hjAccessoryPaused && hjAccessoryKnown) return;
   hjAccessoryPaused = true;
   hjAccessoryKnown = true;
+  hjStartupCountdownActive = false;
+  hjStartupCountdownPending = false;
   oledReady = false;
   pinMode(LED_DATA_PIN, OUTPUT);
   digitalWrite(LED_DATA_PIN, LOW);
@@ -3131,6 +3135,13 @@ static void hjAccessoryPauseExit() {
     if (Serial) Serial.println("HJ|ACCESSORY|state=ACTIVE|sensor=OLED|lamps=RMT_ERROR");
     return;
   }
+
+  // The accessory switch is a user wake action. Show the birthday on every
+  // successful rail restore, independently of the randomized cold-boot choice.
+  hjWakeFromSleep("ACCESSORY");
+  hjStartupCountdownActive = false;
+  hjStartupCountdownPending = hjValidBirthday(ownerBirthday);
+  hjScreensaverTouch();
 
   if (patternName == "OFF") {
     allOff();
@@ -3664,7 +3675,6 @@ static void serviceOled() {
   if (!oledReady || !oled) return;
   unsigned long now = millis();
   serviceScreensaverClock();
-  serviceStartupBirthdayCountdown();
   if (hjStartupCountdownActive &&
       (long)(millis() - hjStartupCountdownUntilMs) >= 0) {
     hjStartupCountdownActive = false;
@@ -4384,7 +4394,8 @@ void loop(){
   servicePattern();
   serviceAlarm();
   serviceTimer();
-  if (hjArcadeActive() && !hjSleepActive) hjArcadeService(millis());
+  serviceStartupBirthdayCountdown();
+  if (hjArcadeActive() && !hjSleepActive && !hjStartupCountdownActive) hjArcadeService(millis());
   else serviceOled();
   static bool timeStarted=false;
   if (WiFi.status()==WL_CONNECTED) {

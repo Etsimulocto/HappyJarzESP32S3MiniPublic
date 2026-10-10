@@ -133,18 +133,34 @@ class JarSerial:
                 continue
 
     def _reader_loop(self):
-        while self.running and self.ser is not None and self.ser.is_open:
+        # Keep this thread tied to the connection it was created for. A stale
+        # reader must not disconnect a newer connection after a reconnect.
+        with self.lock:
+            ser = self.ser
+
+        while self.running and ser is not None:
             try:
-                raw = self.ser.readline()
+                # Serialize reads with writes and close(). The short serial
+                # timeout keeps this lock hold brief and prevents close() from
+                # clearing pySerial's file descriptor during readline().
+                with self.lock:
+                    if self.ser is not ser or not ser.is_open:
+                        break
+                    raw = ser.readline()
+
                 if not raw:
                     continue
                 line = raw.decode("utf-8", errors="replace").strip()
                 if line:
                     self._emit("line", line)
-            except (serial.SerialException, OSError) as exc:
-                self._emit("log", f"Serial connection lost: {exc}")
+            except (serial.SerialException, OSError, TypeError) as exc:
+                # pySerial on POSIX can raise TypeError from os.read(fd=None)
+                # if the USB device disappears while a read is in progress.
+                if self.running:
+                    self._emit("log", f"Serial connection lost: {exc}")
                 break
-        self._disconnect_internal()
+
+        self._disconnect_internal(ser)
 
     @staticmethod
     def _safe_log_command(command: str) -> str:
@@ -155,26 +171,36 @@ class JarSerial:
 
     def send(self, command: str):
         command = command.strip()
+        failed_ser = None
         with self.lock:
-            if not self.ser or not self.ser.is_open:
+            ser = self.ser
+            if not ser or not ser.is_open:
                 self._emit("log", f"Not connected; command skipped: {self._safe_log_command(command)}")
                 return False
             try:
-                self.ser.write((command + "\n").encode("utf-8"))
-                self.ser.flush()
+                ser.write((command + "\n").encode("utf-8"))
+                ser.flush()
                 self._emit("tx", self._safe_log_command(command))
                 return True
-            except (serial.SerialException, OSError) as exc:
+            except (serial.SerialException, OSError, TypeError) as exc:
                 self._emit("log", f"Write failed: {exc}")
-                self._disconnect_internal()
-                return False
+                failed_ser = ser
 
-    def _disconnect_internal(self):
-        old_port = self.port_name
+        # Release the lock before disconnecting; _disconnect_internal also
+        # acquires it. Passing the expected handle prevents stale cleanup from
+        # closing a connection opened after this write failed.
+        self._disconnect_internal(failed_ser)
+        return False
+
+    def _disconnect_internal(self, expected_ser: serial.Serial | None = None):
         with self.lock:
-            if self.ser is not None:
+            if expected_ser is not None and self.ser is not expected_ser:
+                return
+            ser = self.ser
+            old_port = self.port_name
+            if ser is not None:
                 try:
-                    self.ser.close()
+                    ser.close()
                 except Exception:
                     pass
             self.ser = None

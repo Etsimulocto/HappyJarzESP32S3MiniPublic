@@ -105,7 +105,7 @@ class JarSerial:
                 while time.monotonic() < deadline:
                     now = time.monotonic()
                     if now >= next_hello:
-                        probe.write(b"HELLO\\n")
+                        probe.write(b"HELLO\n")
                         probe.flush()
                         next_hello = now + HELLO_RETRY_SECONDS
                     line = probe.readline().decode("utf-8", errors="replace").strip()

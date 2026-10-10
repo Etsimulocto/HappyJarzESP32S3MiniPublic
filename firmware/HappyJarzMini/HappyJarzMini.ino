@@ -1,4 +1,4 @@
-// HAPPY JARZ ESP32-S3 SuperMini firmware v0.18.1
+// HAPPY JARZ ESP32-S3 SuperMini firmware v0.18.2
 // SIMPLE profile: six capacitive inputs, 128x64 OLED, four APA106 lamps,
 // local games/screensavers, and the HAPPY JARZ USB control protocol.
 //
@@ -32,7 +32,7 @@
 #include "happyjarz_led_types.h"
 
 static const char *HJ_HW_VERSION = "V1";
-static const char *HJ_FW_VERSION = "0.18.1";
+static const char *HJ_FW_VERSION = "0.18.2";
 
 static String hjChipId() {
   char id[13];
@@ -298,6 +298,10 @@ static String ownerBirthday = "--";
 static time_t hjBirthdayCacheMinute = (time_t)-1;
 static bool hjBirthdayCacheValue = false;
 static bool hjBirthdayToday();
+static bool hjStartupCountdownPending = false;
+static bool hjStartupCountdownActive = false;
+static unsigned long hjStartupCountdownUntilMs = 0;
+static int hjStartupCountdownDays = -1;
 
 
 static const char *tzPosixFor(const String &name) {
@@ -1236,7 +1240,7 @@ static bool hjValidBirthday(const String &value) {
 }
 
 static bool hjBirthdayToday() {
-  if (!ownerName.length() || !hjValidBirthday(ownerBirthday) || !clockSynced()) return false;
+  if (!hjValidBirthday(ownerBirthday) || !clockSynced()) return false;
   time_t now = time(nullptr);
   time_t minute = now / 60;
   if (minute == hjBirthdayCacheMinute) return hjBirthdayCacheValue;
@@ -1256,6 +1260,30 @@ static bool hjBirthdayToday() {
     hjBirthdayCacheValue = !leap;
   }
   return hjBirthdayCacheValue;
+}
+
+static int hjBirthdayCountdownDays() {
+  if (!hjValidBirthday(ownerBirthday) || !clockSynced()) return -1;
+  struct tm local;
+  if (!getLocalTime(&local, 0)) return -1;
+
+  int month = ownerBirthday.substring(0, 2).toInt();
+  int day = ownerBirthday.substring(3, 5).toInt();
+  struct tm target = {};
+  target.tm_year = local.tm_year;
+  target.tm_mon = month - 1;
+  target.tm_mday = day;
+  target.tm_hour = 12;
+  target.tm_isdst = -1;
+  if (mktime(&target) < 0) return -1; // Feb 29 normalizes to Mar 1 in common years.
+
+  int days = target.tm_yday - local.tm_yday;
+  if (days < 0) {
+    int year = local.tm_year + 1900;
+    bool leap = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
+    days += leap ? 366 : 365;
+  }
+  return days;
 }
 
 static void printWifiStatus() {
@@ -1460,12 +1488,19 @@ enum UiScreen : uint8_t {
   UI_SETTINGS,
   UI_SYSTEM,
   UI_POWER,
-  UI_INFO
+  UI_INFO,
+  UI_PROFILE
 };
 static UiScreen uiScreen = UI_HOME;
 static uint8_t uiCursor = 0;
 static uint8_t uiScroll = 0;
 static uint8_t infoPage = 0;
+static UiScreen clockReturnScreen = UI_MAIN_MENU;
+static uint8_t profileMenuCursor = 0;
+static uint8_t profileEditor = 0; // 0 menu, 1 name, 2 birthday
+static String profileEditName;
+static String profileEditBirthday;
+static uint8_t profileEditChar = 0;
 
 
 // -----------------------------
@@ -1654,6 +1689,102 @@ static bool manualClockSave() {
   Serial.println("HJ|EVENT|clock=MANUAL_SET");
   return true;
 }
+
+static const char HJ_PROFILE_CHARS[] =
+    " ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'-";
+
+static int profileCharIndex(char c) {
+  for (int i = 0; HJ_PROFILE_CHARS[i]; ++i) {
+    if (HJ_PROFILE_CHARS[i] == c) return i;
+  }
+  return 0;
+}
+
+static void profileBeginNameEdit() {
+  profileEditName = ownerName;
+  if (profileEditName.length() > 16) profileEditName = profileEditName.substring(0, 16);
+  for (size_t i = 0; i < profileEditName.length(); ++i) {
+    if (profileCharIndex(profileEditName.charAt(i)) == 0 &&
+        profileEditName.charAt(i) != ' ') profileEditName.setCharAt(i, ' ');
+  }
+  if (!profileEditName.length()) profileEditName = " ";
+  profileEditChar = 0;
+  profileEditor = 1;
+  oledDirty = true;
+}
+
+static void profileCycleNameChar(int delta) {
+  if (!profileEditName.length() || profileEditChar >= profileEditName.length()) return;
+  int count = sizeof(HJ_PROFILE_CHARS) - 1;
+  int index = profileCharIndex(profileEditName.charAt(profileEditChar));
+  index = (index + delta + count) % count;
+  profileEditName.setCharAt(profileEditChar, HJ_PROFILE_CHARS[index]);
+  oledDirty = true;
+}
+
+static void profileBeginBirthdayEdit() {
+  profileEditBirthday = hjValidBirthday(ownerBirthday) ? ownerBirthday : "01-01";
+  profileEditChar = 0;
+  profileEditor = 2;
+  oledDirty = true;
+}
+
+static void profileAdjustBirthday(int delta) {
+  static const uint8_t digitPositions[] = {0, 1, 3, 4};
+  uint8_t pos = digitPositions[profileEditChar % 4];
+  int digit = profileEditBirthday.charAt(pos) - '0';
+  digit = (digit + delta + 10) % 10;
+  profileEditBirthday.setCharAt(pos, (char)('0' + digit));
+  oledDirty = true;
+}
+
+static void profileSaveName() {
+  profileEditName.trim();
+  ownerName = profileEditName.substring(0, 32);
+  persistSettings();
+  profileEditor = 0;
+  oledDirty = true;
+  Serial.println("HJ|EVENT|profile=NAME_SAVED");
+}
+
+static bool profileSaveBirthday() {
+  if (!hjValidBirthday(profileEditBirthday)) {
+    Serial.println("HJ|ERR|message=birthday must be a valid MM-DD date");
+    return false;
+  }
+  ownerBirthday = profileEditBirthday;
+  hjBirthdayCacheMinute = (time_t)-1;
+  persistSettings();
+  profileEditor = 0;
+  hjStartupCountdownPending = (esp_random() % 3U) == 0;
+  oledDirty = true;
+  Serial.println("HJ|EVENT|profile=BIRTHDAY_SAVED");
+  return true;
+}
+
+static void profileClear() {
+  ownerName = "";
+  ownerBirthday = "--";
+  hjBirthdayCacheMinute = (time_t)-1;
+  hjStartupCountdownPending = false;
+  persistSettings();
+  oledDirty = true;
+  Serial.println("HJ|EVENT|profile=CLEARED");
+}
+
+static void uiClockBack() {
+  if (clockReturnScreen == UI_PROFILE) {
+    uiScreen = UI_PROFILE;
+    profileEditor = 0;
+    oledDirty = true;
+  } else {
+    uiScreen = UI_MAIN_MENU;
+    uiCursor = 0;
+    uiScroll = 0;
+    oledDirty = true;
+  }
+}
+
 static constexpr unsigned long HJ_SCREENSAVER_IDLE_MS = 30000UL;
 static unsigned long hjLastInteractionMs = 0;
 static bool hjScreensaverActive = false;
@@ -2871,8 +3002,33 @@ static void oledRenderBirthday() {
   if (!oled) return;
   oled->setFont(u8g2_font_6x12_tr);
   oledCentered(17, "HAPPY BIRTHDAY!");
-  oledCentered(37, ownerName);
+  oledCentered(37, ownerName.length() ? ownerName : "TO YOU");
   oledCentered(57, "TODAY IS YOUR DAY");
+}
+
+static void oledRenderBirthdayCountdown(int days) {
+  if (!oled) return;
+  oled->setFont(u8g2_font_6x12_tr);
+  if (days == 0) {
+    oledCentered(15, "HAPPY BIRTHDAY!");
+    oledCentered(33, ownerName.length() ? ownerName : "TO YOU");
+    oledCentered(51, "TODAY IS YOUR DAY");
+  } else {
+    oledCentered(13, "BIRTHDAY COUNTDOWN");
+    oledCentered(29, ownerName.length() ? ownerName : "YOUR BIRTHDAY");
+    oledCentered(45, String(days) + (days == 1 ? " DAY TO GO" : " DAYS TO GO"));
+    oledCentered(61, "HAPPY JARZ");
+  }
+}
+
+static void serviceStartupBirthdayCountdown() {
+  if (!hjStartupCountdownPending || !hjValidBirthday(ownerBirthday)) return;
+  if (!clockSynced()) return;
+  hjStartupCountdownDays = hjBirthdayCountdownDays();
+  hjStartupCountdownPending = false;
+  if (hjStartupCountdownDays < 0) return;
+  hjStartupCountdownActive = true;
+  hjStartupCountdownUntilMs = millis() + 5000UL;
 }
 
 static String compactRgb(const Rgb &c) {
@@ -3025,8 +3181,8 @@ static void oledRenderHome() {
 }
 
 static void oledRenderMainMenu() {
-  static const char *items[] = {"CLOCK", "LIGHTS", "GAMES", "SETTINGS", "POWER", "SYSTEM", "INFO"};
-  static constexpr uint8_t count = 7;
+  static const char *items[] = {"CLOCK", "LIGHTS", "GAMES", "SETTINGS", "POWER", "SYSTEM", "INFO", "PROFILE"};
+  static constexpr uint8_t count = 8;
   if (uiCursor >= count) uiCursor = 0;
   if (uiCursor < uiScroll) uiScroll = uiCursor;
   if (uiCursor > uiScroll + 3) uiScroll = uiCursor - 3;
@@ -3036,6 +3192,69 @@ static void oledRenderMainMenu() {
     String text = String(idx == uiCursor ? "> " : "  ") + items[idx];
     oledCentered(13 + row*16, text);
   }
+}
+
+static void oledRenderProfile() {
+  if (profileEditor == 1) {
+    oledCentered(11, "EDIT OWNER NAME");
+    oled->setFont(u8g2_font_6x12_tr);
+    int nameWidth = oled->getUTF8Width(profileEditName.c_str());
+    int nameX = (128 - nameWidth) / 2;
+    if (nameX < 0) nameX = 0;
+    String prefix = profileEditName.substring(0, profileEditChar);
+    int charX = nameX + oled->getUTF8Width(prefix.c_str());
+    String selected = profileEditName.substring(profileEditChar, profileEditChar + 1);
+    int charWidth = max(4, oled->getUTF8Width(selected.c_str()));
+    oled->drawFrame(charX - 1, 17, charWidth + 2, 15);
+    oled->drawStr(nameX, 28, profileEditName.c_str());
+    oled->setFont(u8g2_font_5x8_tf);
+    oledCentered(44, "UP/DN: LETTER");
+    oledCentered(53, "LT/RT: POSITION");
+    oledCentered(62, "A SAVE   B BACK");
+    oled->setFont(u8g2_font_6x12_tr);
+    return;
+  }
+  if (profileEditor == 2) {
+    oledCentered(11, "SET BIRTHDAY");
+    oled->setFont(u8g2_font_6x12_tr);
+    oledCentered(32, profileEditBirthday);
+    static const uint8_t digitPositions[] = {0, 1, 3, 4};
+    uint8_t pos = digitPositions[profileEditChar % 4];
+    String prefix = profileEditBirthday.substring(0, pos);
+    String digit = profileEditBirthday.substring(pos, pos + 1);
+    int x = (128 - oled->getUTF8Width(profileEditBirthday.c_str())) / 2 +
+            oled->getUTF8Width(prefix.c_str());
+    oled->drawFrame(x - 1, 20, max(4, oled->getUTF8Width(digit.c_str())) + 2, 17);
+    oled->setFont(u8g2_font_5x8_tf);
+    oledCentered(46, "UP/DN: DIGIT");
+    oledCentered(54, "LT/RT: MOVE");
+    oledCentered(62, "A SAVE   B BACK");
+    oled->setFont(u8g2_font_6x12_tr);
+    return;
+  }
+
+  if (profileEditor == 3) {
+    oledCentered(14, "CLEAR OWNER PROFILE?");
+    oledCentered(32, "NAME AND BIRTHDAY");
+    oledCentered(50, "A CLEAR");
+    oledCentered(62, "B CANCEL");
+    return;
+  }
+
+  oled->setFont(u8g2_font_5x8_tf);
+  oled->drawStr(0, 9, "OWNER PROFILE");
+  String rows[] = {
+    String("NAME: ") + (ownerName.length() ? ownerName : "(not set)"),
+    String("BIRTHDAY: ") + (hjValidBirthday(ownerBirthday) ? ownerBirthday : "(not set)"),
+    "DATE / TIME: SET CLOCK",
+    "CLEAR PROFILE"
+  };
+  for (uint8_t row = 0; row < 4; ++row) {
+    String text = String(row == profileMenuCursor ? "> " : "  ") + rows[row];
+    oled->drawStr(0, 20 + row * 10, text.c_str());
+  }
+  oledCentered(63, "UP/DN MOVE  A OPEN  B BACK");
+  oled->setFont(u8g2_font_6x12_tr);
 }
 
 static void oledRenderClock() {
@@ -3420,13 +3639,14 @@ static void uiGoHome() {
 
 static void uiSelectMain() {
   switch (uiCursor) {
-    case 0: uiScreen = UI_CLOCK; break;
+    case 0: clockReturnScreen = UI_MAIN_MENU; uiScreen = UI_CLOCK; break;
     case 1: uiScreen = UI_LIGHTS; break;
     case 2: uiScreen = UI_GAMES; break;
     case 3: uiScreen = UI_SETTINGS; break;
     case 4: uiScreen = UI_POWER; break;
     case 5: uiScreen = UI_SYSTEM; break;
-    default: infoPage = 0; uiScreen = UI_INFO; break;
+    case 6: infoPage = 0; uiScreen = UI_INFO; break;
+    default: profileMenuCursor = 0; profileEditor = 0; uiScreen = UI_PROFILE; break;
   }
   oledDirty = true;
 }
@@ -3437,6 +3657,12 @@ static void serviceOled() {
   if (!oledReady || !oled) return;
   unsigned long now = millis();
   serviceScreensaverClock();
+  serviceStartupBirthdayCountdown();
+  if (hjStartupCountdownActive &&
+      (long)(millis() - hjStartupCountdownUntilMs) >= 0) {
+    hjStartupCountdownActive = false;
+    oledDirty = true;
+  }
 
   unsigned long cadence = hjScreensaverActive ? 45UL : 250UL;
   if (!oledDirty && now - oledLastDrawMs < cadence) return;
@@ -3445,7 +3671,9 @@ static void serviceOled() {
   oled->clearBuffer();
   oled->setFont(u8g2_font_6x12_tr);
 
-  if (hjScreensaverActive) {
+  if (hjStartupCountdownActive) {
+    oledRenderBirthdayCountdown(hjStartupCountdownDays);
+  } else if (hjScreensaverActive) {
     oledRenderScreensaver();
     if (hjScreensaverMode == 0) hjMarqueeX -= 2;
     else if (hjScreensaverMode == 1) hjArtStep += hjSpiralSpeed;
@@ -3461,6 +3689,7 @@ static void serviceOled() {
       case UI_HOME: oledRenderHome(); break;
       case UI_MAIN_MENU: oledRenderMainMenu(); break;
       case UI_CLOCK: oledRenderClock(); break;
+      case UI_PROFILE: oledRenderProfile(); break;
       case UI_LIGHTS: oledRenderLights(); break;
       case UI_GAMES: oledRenderGames(); break;
       case UI_SETTINGS: oledRenderSettings(); break;
@@ -3613,6 +3842,55 @@ static void serviceInputs() {
   }
 
 
+  // PROFILE is editable entirely from the jar's six capacitive controls.
+  if (inputMode == "JAR" && !hjScreensaverActive && uiScreen == UI_PROFILE) {
+    if (profileEditor == 1) {
+      if (q[IN_LEFT] && !latched[IN_LEFT] && profileEditChar > 0) {
+        profileEditChar--;
+        oledDirty = true;
+      }
+      if (q[IN_RIGHT] && !latched[IN_RIGHT]) {
+        if (profileEditChar + 1 < profileEditName.length()) {
+          profileEditChar++;
+        } else if (profileEditName.length() < 16) {
+          profileEditName += ' ';
+          profileEditChar++;
+        }
+        oledDirty = true;
+      }
+      if (q[IN_UP] && !latched[IN_UP]) profileCycleNameChar(+1);
+      if (q[IN_DOWN] && !latched[IN_DOWN]) profileCycleNameChar(-1);
+      if (q[IN_A] && !latched[IN_A]) profileSaveName();
+      if (q[IN_B] && !latched[IN_B]) { profileEditor = 0; oledDirty = true; }
+    } else if (profileEditor == 3) {
+      if (q[IN_A] && !latched[IN_A]) { profileClear(); profileEditor = 0; }
+      if (q[IN_B] && !latched[IN_B]) { profileEditor = 0; oledDirty = true; }
+    } else if (profileEditor == 2) {
+      if (q[IN_LEFT] && !latched[IN_LEFT]) profileEditChar = (profileEditChar + 3) % 4;
+      if (q[IN_RIGHT] && !latched[IN_RIGHT]) profileEditChar = (profileEditChar + 1) % 4;
+      if (q[IN_UP] && !latched[IN_UP]) profileAdjustBirthday(+1);
+      if (q[IN_DOWN] && !latched[IN_DOWN]) profileAdjustBirthday(-1);
+      if (q[IN_A] && !latched[IN_A]) profileSaveBirthday();
+      if (q[IN_B] && !latched[IN_B]) { profileEditor = 0; oledDirty = true; }
+    } else {
+      if (q[IN_UP] && !latched[IN_UP]) profileMenuCursor = (profileMenuCursor + 3) % 4;
+      if (q[IN_DOWN] && !latched[IN_DOWN]) profileMenuCursor = (profileMenuCursor + 1) % 4;
+      if (q[IN_A] && !latched[IN_A]) {
+        if (profileMenuCursor == 0) profileBeginNameEdit();
+        else if (profileMenuCursor == 1) profileBeginBirthdayEdit();
+        else if (profileMenuCursor == 2) {
+          clockReturnScreen = UI_PROFILE;
+          uiScreen = UI_CLOCK;
+          oledDirty = true;
+        } else { profileEditor = 3; oledDirty = true; }
+      }
+      if ((q[IN_B] && !latched[IN_B]) || (q[IN_LEFT] && !latched[IN_LEFT])) uiOpenMainMenu();
+      oledDirty = true;
+    }
+    for (uint8_t i=0;i<INPUT_COUNT;++i) latched[i]=q[i];
+    return;
+  }
+
   // SETTINGS owns touch input before downstream menu/detail routing.
   if (inputMode == "JAR" && !hjScreensaverActive && uiScreen == UI_SETTINGS) {
     if (settingsEditor == 0) {
@@ -3647,7 +3925,7 @@ static void serviceInputs() {
       if (q[IN_B] && !latched[IN_B]) { manualClockEditing=false; oledDirty=true; }
     } else {
       if (q[IN_A] && !latched[IN_A]) manualClockBeginEdit();
-      if ((q[IN_B] && !latched[IN_B]) || (q[IN_LEFT] && !latched[IN_LEFT])) uiOpenMainMenu();
+      if ((q[IN_B] && !latched[IN_B]) || (q[IN_LEFT] && !latched[IN_LEFT])) uiClockBack();
     }
     for (uint8_t i=0;i<INPUT_COUNT;++i) latched[i]=q[i];
     return;
@@ -3663,6 +3941,10 @@ static void serviceInputs() {
   bool anyNewPress=false;
   for (uint8_t i=0;i<INPUT_COUNT;++i) if (q[i] && !latched[i]) anyNewPress=true;
   if (anyNewPress) hjScreensaverTouch();
+  if (anyNewPress && hjStartupCountdownActive) {
+    hjStartupCountdownActive = false;
+    oledDirty = true;
+  }
 
   if (hjScreensaverActive) {
     if (q[IN_B] && !latched[IN_B]) hjScreensaverExit();
@@ -3720,11 +4002,11 @@ static void serviceInputs() {
       }
     } else if (uiScreen == UI_MAIN_MENU) {
       if (q[IN_UP] && !latched[IN_UP]) {
-        uiCursor=(uiCursor+6)%7;
+        uiCursor=(uiCursor+7)%8;
         oledDirty=true;
       }
       if (q[IN_DOWN] && !latched[IN_DOWN]) {
-        uiCursor=(uiCursor+1)%7;
+        uiCursor=(uiCursor+1)%8;
         oledDirty=true;
       }
       if (q[IN_A] && !latched[IN_A]) {
@@ -4076,6 +4358,8 @@ void setup(){
     calibrateInputs();
     printTouchCalibration();
     loadSettings();
+    hjStartupCountdownPending = hjValidBirthday(ownerBirthday) &&
+                                ((esp_random() % 3U) == 0);
     if(patternName=="OFF") allOff();
     else if(patternName=="SOLID") showLeds();
     else resetPatternEngine();

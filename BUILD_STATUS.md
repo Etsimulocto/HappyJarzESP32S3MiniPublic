@@ -52,3 +52,12 @@ Mark a firmware release verified only after a clean compile with the documented 
 - Six protocol/diagnostics tests passed, JavaScript syntax checks passed, and static UI validation found all nine tabs with no duplicate or missing wired controls. Browser smoke tests were extended for Service tests/report exports but remain unexecuted due to the unavailable Chromium download in this environment. Physical Pi/Windows USB verification remains pending; responsive layout does not establish phone/tablet USB support.
 - Corrected the initial web draft's POSIX timezone selections: firmware 0.18.4 expects its supported IANA identifiers and otherwise falls back to US Central. UI now offers only supported US regions and UTC. Broader international timezone mapping remains future firmware work.
 - No firmware/partition change, released binary, enabled flasher or deployed Pages site accompanies this draft.
+
+
+## Web Studio draft 0.3 — Lights + Control
+
+- Compared the web tab against the Pi app's controller core/UI/extensions and the current firmware commands. Added four Base/Live color cards with chooser/White/Off, 100-pattern live selection, debounced brightness with the confirmed 50% ceiling, save and refresh. LED_FRAME remains the source of live bulb colors.
+- Live touch and OLED streams accompany identity/battery readouts. All twelve console inputs are visible, but only GET CAPS advertised keys are enabled. Keyboard and standard browser gamepad input are opt-in, focus/tab gated and pause while typing; unsupported gamepad mappings are not guessed.
+- Captured pattern themes use a short live palette and readable text contrast. Explicit disconnect stops all three streams; a connection generation guard rejects old queued commands after reconnection. High-rate telemetry is sampled in the retained diagnostic log; errors are not sampled.
+- Nine Node logic tests passed, including the existing protocol/report tests and new RGB, brightness, capability, gamepad and theme checks. Syntax and static UI wiring checks passed (92 unique HTML IDs). Simulated browser smoke coverage was extended, but remains unexecuted without a working Chromium installation. Real Pi/Windows USB and visual checks remain pending.
+- No firmware change or flash is required. This update does not add a shared support inbox or automated remote repairs.

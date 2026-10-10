@@ -1,5 +1,6 @@
 import { parseLine, profileCommand, pixelIndex, artChunks, importDrawing, compareVersions } from './protocol.mjs';
 import { DiagnosticLog, buildReport, safeFields } from './diagnostics.mjs';
+import { INPUT_KEYS, rgb, rgbHex, hexRgb, brightness, capabilities, gamepadKeys, patternTheme } from './lights.mjs';
 const $ = id => document.getElementById(id);
 let storage; try { storage=localStorage; } catch {}
 const diagnostics=new DiagnosticLog({storage}), snapshots={}, testResults=[];
@@ -13,6 +14,8 @@ function renderDiagnostics(){
 }
 let port, reader, writer, readTask, identity, pending, queue = Promise.resolve(), closing = false, connecting = false, transferring = false;
 let pollTimer, handshakeTimer, releaseCatalog;
+let deviceControls=new Set(), brightnessTimer, themeTimer, themeFrames=[], currentScene='', themedScene='', connectionGeneration=0, hostPending=0;
+const telemetryLogTimes={};
 function message(text,level='info') { $('message').textContent = text; log(text,level,'UI'); }
 function log(text,level='info',kind='RX') {
   diagnostics.add(level,kind,text);renderDiagnostics();
@@ -20,6 +23,7 @@ function log(text,level='info',kind='RX') {
 }
 function controls() {
   document.querySelectorAll('[data-device]').forEach(el => el.disabled = !identity || transferring || serviceBusy);
+  document.querySelectorAll('[data-key]').forEach(el=>el.disabled=!identity || transferring || serviceBusy || !deviceControls.has(el.dataset.key));
   $('connect').disabled = connecting || closing || !('serial' in navigator);
   $('connect').hidden = Boolean(identity);
   $('disconnect').hidden = !port;
@@ -33,7 +37,8 @@ function receive(line) {
   const { type, data } = parsed;
   snapshots[type]={at:new Date().toISOString(),fields:{...data}};
   if(type==='OLED')snapshots[type].fields={...data,data:'[frame payload omitted]'};
-  log(line,type==='ERR'?'error':'info','RX');
+  const highRate=['OLED','LED_FRAME','INPUT','TOUCH'].includes(type),now=performance.now();
+  if(!highRate || now-(telemetryLogTimes[type]??-Infinity)>1000){log(line,type==='ERR'?'error':'info','RX');telemetryLogTimes[type]=now;}
   updateReadouts();
   if (pending && (type === 'ERR' || pending.match(parsed))) {
     const p = pending; pending = null; clearTimeout(p.timer);
@@ -49,14 +54,30 @@ function receive(line) {
     $('birth-month').value = parts[0]; $('birth-day').value = parts[1];
   }
   if (type === 'STATUS') {
+    updateScene(data);
     if ([...$('pattern').options].some(o => o.value === data.pattern)) $('pattern').value = data.pattern;
-    if (Number.isFinite(Number(data.brightness))) { $('brightness').value = data.brightness; $('brightness-label').textContent = `${data.brightness}%`; }
+    if (Number.isFinite(Number(data.brightness))) { $('brightness').value = brightness(data.brightness); $('brightness-label').textContent = `${brightness(data.brightness)}%`; }
     for (let i = 1; i <= 4; i++) {
       const rgb = data[`led${i}`]?.split(',').map(Number);
-      if (rgb?.length === 3 && rgb.every(n => Number.isInteger(n) && n >= 0 && n <= 255)) $('color'+i).value = '#'+rgb.map(n=>n.toString(16).padStart(2,'0')).join('');
+      if (rgb?.length === 3 && rgb.every(n => Number.isInteger(n) && n >= 0 && n <= 255)) {const hex=rgbHex(rgb);$('color'+i).value=hex;$('base'+i).style.backgroundColor=hex;$('base-value'+i).textContent=hex.toUpperCase();}
     }
   }
   if (type === 'POWER') $('power').textContent = Number(data.percent) >= 0 ? `Battery ${data.percent}% · ${data.voltage || '—'} V` : 'Battery reading unavailable';
+  if(type==='CAPS'){
+    deviceControls=capabilities(data.controls);controls();$('input-capabilities').textContent=`${data.profile || 'Device'} · ${deviceControls.size} advertised controls`;
+    for(const key of INPUT_KEYS){$('input-'+key).classList.toggle('unsupported',!deviceControls.has(key));$('input-value-'+key).textContent=deviceControls.has(key)?'—':'N/A';}
+  }
+  if(type==='INPUT' || type==='TOUCH'){
+    for(const key of INPUT_KEYS){const value=data[key] ?? (key==='a'?data.c1:key==='b'?data.c2:undefined);if(deviceControls.has(key) && value!==undefined)$('input-value-'+key).textContent=value;}
+    $('input-state').textContent='Live touch readings · '+new Date().toLocaleTimeString();
+  }
+  if(type==='EVENT' && data.input)pulseKey(data.input.toLowerCase());
+  if(type==='LED_FRAME'){
+    updateScene(data);const frame=[];
+    for(let i=1;i<=4;i++){const color=rgb(data['led'+i] ?? data['live_led'+i]);if(color){const hex=rgbHex(color);$('live'+i).style.backgroundColor=hex;$('live-value'+i).textContent=hex.toUpperCase();frame.push(color);}}
+    if(!themeTimer && themedScene!==currentScene && $('pattern-theme').checked)captureTheme();
+    if(themeTimer && frame.length===4 && themeFrames.length<64)themeFrames.push(frame);
+  }
   if(type==='WIFI')$('wifi-state').textContent=`${data.state} · ${data.ssid || 'No network'} · signal ${data.rssi || '—'} dBm`;
   if(type==='TIME'){$('time-state').textContent=`${data.local || 'Clock not synced'} · ${data.timezone || '—'}`;if([...$('timezone').options].some(o=>o.value===data.timezone))$('timezone').value=data.timezone;}
   if(type==='ALARM' || type==='TIMER')$('schedule-state').textContent=type+': '+Object.entries(data).map(([k,v])=>`${k}=${v}`).join(' · ');
@@ -72,6 +93,7 @@ function receive(line) {
         const i=(y*128+x)*4; image.data.set(lit ? [168,231,214,255] : [6,11,21,255],i);
       }
       ctx.putImageData(image,0,0);
+      $('oled-state').textContent=`LIVE · frame ${data.seq || '—'} · ${new Date().toLocaleTimeString()}`;
     } catch { log('Ignored malformed screen frame.','warn','PROTOCOL'); }
   }
 }
@@ -98,7 +120,9 @@ async function write(command) {
   await writer.write(new TextEncoder().encode(command+'\n'));
 }
 function request(command, match, timeout=5000) {
+  const generation=connectionGeneration;
   const work = queue.then(async () => {
+    if(generation!==connectionGeneration)throw new Error('Request belongs to a previous USB connection.');
     if (!identity && command !== 'HELLO') throw new Error('Connect your jar first.');
     return new Promise((resolve,reject) => {
       const timer = setTimeout(()=>rejectPending(new Error('No response from jar: '+command.split(' ').slice(0,2).join(' '))),timeout);
@@ -111,6 +135,7 @@ function request(command, match, timeout=5000) {
 function ack(command, response=command) { return request(command,p=>p.type==='ACK' && p.data.command===response); }
 function query(command,type) { return request(command,p=>p.type===type); }
 function updateReadouts(){
+  if($('service').hidden)return;
   const root=$('service-readouts');root.replaceChildren();
   for(const type of ['IDENTITY','CAPS','POWER','STATUS','LED_FRAME','OLED','WIFI','TIME','ALARM','TIMER','DISPLAY','INPUT','TOUCH_CAL','SAVER','ACCESSORY','SLEEP','ART']){
     const card=document.createElement('section'),heading=document.createElement('h3'),body=document.createElement('pre'),stamp=document.createElement('small');
@@ -129,6 +154,7 @@ async function serviceTest(label,command,match,timeout=10000){
   finally{if(testResults.length>100)testResults.shift();$('service-tests').textContent=testResults.map(t=>`${t.at} · ${t.label}: ${t.result} (${t.elapsedMs} ms) · ${t.detail}`).join('\n');serviceBusy=false;controls();}
 }
 async function connect() {
+  connectionGeneration++;deviceControls=new Set();currentScene='';themedScene='';
   connecting=true; controls(); message('Select your jar. Keep the Pi controller closed.');
   try {
     port=await navigator.serial.requestPort();
@@ -142,8 +168,10 @@ async function connect() {
     handshakeTimer=setInterval(()=>write('HELLO').catch(()=>{}),300);
     try { await hello; } finally { clearInterval(handshakeTimer); }
     for (const [command,type] of [['GET PROFILE','PROFILE'],['GET STATUS','STATUS'],['GET POWER','POWER']]) await query(command,type);
+    await query('GET CAPS','CAPS');
     await query('GET TIME STATUS','TIME');
     await ack('STREAM OLED ON');
+    await ack('STREAM LED ON');await ack('STREAM TOUCH ON');
     pollTimer=setInterval(()=>{if(identity && !transferring && !serviceBusy) query('GET POWER','POWER').catch(error=>message(error.message,'error'));},10000);
     message('Connected. Your jar is ready.');
   } catch(error) { message(error.name==='NotFoundError' ? 'No jar selected.' : `Could not connect: ${error.message}`,error.name==='NotFoundError'?'warn':'error'); await disconnect(); }
@@ -152,7 +180,9 @@ async function connect() {
 async function disconnect() {
   if (closing) return;
   closing=true; clearInterval(pollTimer); clearInterval(handshakeTimer);clearInterval(inputTimer);$('live-input').checked=false;log('Disconnecting serial session.','info','USB'); rejectPending(new Error('Jar disconnected.'));
+  connectionGeneration++;clearTimeout(brightnessTimer);clearTimeout(themeTimer);themeTimer=null;themeFrames=[];deviceControls=new Set();$('oled-state').textContent='Disconnected · last received screen';$('input-state').textContent='Disconnected · readings paused';
   identity=null; controls();
+  try{if(writer){const command='STREAM OLED OFF\nSTREAM LED OFF\nSTREAM TOUCH OFF\n';log('Stopping OLED, LED and touch streams.','info','USB');await writer.write(new TextEncoder().encode(command));}}catch(error){log(error.message,'warn','USB-CLEANUP');}
   try { await reader?.cancel(); await readTask; } catch(error){log(error.message,'warn','USB-CLEANUP');}
   try { writer?.releaseLock(); } catch(error){log(error.message,'warn','USB-CLEANUP');} writer=null;
   try { await port?.close(); } catch(error){log(error.message,'warn','USB-CLEANUP');} port=null; readTask=null; closing=false; controls();
@@ -162,6 +192,7 @@ $('connect').onclick=connect; $('disconnect').onclick=()=>void disconnect();
 document.querySelectorAll('[data-tab]').forEach(button=>button.onclick=()=>{
   document.querySelectorAll('.panel').forEach(p=>p.hidden=p.id!==button.dataset.tab);
   document.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-selected',String(b===button)));
+  if(button.dataset.tab==='service')updateReadouts();
 });
 document.querySelectorAll('[data-command]').forEach(button=>button.onclick=action(async()=>{
   const command=button.dataset.command;
@@ -170,11 +201,60 @@ document.querySelectorAll('[data-command]').forEach(button=>button.onclick=actio
 }));
 const patterns=['SOLID','FADE','PULSE','RAINBOW','RANDOM','HUE_FADE','DUAL_HUE','BREATH','DRIFT','AURORA','OCEAN','LAVENDER','SUNSET','CHRISTMAS','HALLOWEEN','VALENTINE','EASTER','FOURTH','THANKSGIVING','CANDY','GALAXY','FIRE','ICE','FOREST','NEON','TWINKLE','SPARKLE','COLOR_SWAP','COMET','FIREFLY','BUBBLEGUM','CHASE_CW','CHASE_CCW','JAR_CHASE','SIDE_CHASE','SWEEP_LR','SWEEP_TS','DIAGONAL','PING_PONG','DUAL_CHASE','OPP_CHASE','JAR_PULSE','SIDE_ACCENT','WATERFALL','RIPPLE','TIDAL','MOONWAVE','DEEPSEA','LAGOON','ARCTIC','GLACIER','EMBER','CAMPFIRE','SUNRISE','SOLAR','INFERNO','CANDLE','AUTUMN','HARVEST','MINT','MEADOW','JUNGLE','MOSS','CLOVER','SPRING','RAINFOREST','LIMEADE','DREAM','COTTON_CANDY','MERMAID','UNICORN','VAPOR','COSMIC','STARDUST','NEBULA','ROSE_GOLD','PEACH','CORAL','CHERRY','BERRY','PLUM','GRAPE','MAGENTA','ELECTRIC','CYBER','LASER','SYNTH','ARCADE','MATRIX','PLASMA','HOLOGRAM','RAIN','THUNDER','LIGHTNING','CLOUD','SNOW','FROST','SUNBEAM','MOONLIGHT','OFF'];
 for (const pattern of patterns) $('pattern').add(new Option(pattern.replaceAll('_',' '),pattern));
-for (let i=1;i<=4;i++) {const label=document.createElement('label'); label.textContent='Bulb '+i; const input=document.createElement('input');input.type='color';input.id='color'+i;input.value=i%2 ? '#eaa2c8' : '#a8e7d6';label.append(input);$('colors').append(label);}
-$('apply-pattern').onclick=action(async()=>{await ack('SET PATTERN '+$('pattern').value,'SET PATTERN');message('Pattern applied.');});
-$('brightness').oninput=()=>{$('brightness-label').textContent=$('brightness').value+'%';};
-$('apply-brightness').onclick=action(async()=>{await ack('SET BRIGHTNESS '+$('brightness').value,'SET BRIGHTNESS');message('Brightness applied.');});
-$('apply-colors').onclick=action(async()=>{for(let i=1;i<=4;i++){const hex=$('color'+i).value;const rgb=[1,3,5].map(j=>parseInt(hex.slice(j,j+2),16));await ack(`SET LED${i} COLOR ${rgb.join(' ')}`,`SET LED${i} COLOR`);}message('Colors applied. Select SOLID to display them continuously.');});
+for (let i=1;i<=4;i++) {
+  const card=document.createElement('article');card.className='light-card';
+  card.innerHTML=`<div class="section-head"><h3>LIGHT ${i}</h3><span class="light-location">${['Top left jar','Top right jar','Left side accent','Right side accent'][i-1]}</span></div><div class="swatch-row"><div><span>BASE</span><i id="base${i}" class="swatch"></i><output id="base-value${i}">—</output></div><div><span>LIVE</span><i id="live${i}" class="swatch"></i><output id="live-value${i}">—</output></div></div><div class="light-actions"><label class="color-chooser">Choose color<input id="color${i}" type="color" value="#000000" data-device aria-label="Light ${i} base color"></label><button id="white${i}" data-device>White</button><button id="off${i}" data-device>Off</button></div>`;
+  $('colors').append(card);
+  $('color'+i).onchange=action(()=>setLight(i,hexRgb($('color'+i).value)));
+  $('white'+i).onclick=action(()=>setLight(i,[255,255,255]));$('off'+i).onclick=action(()=>setLight(i,[0,0,0]));
+}
+async function setLight(i,color){await ack(`SET LED${i} COLOR ${color.join(' ')}`,`SET LED${i} COLOR`);await query('GET STATUS','STATUS');message(`Light ${i} base color applied. Patterns may animate the live color.`);}
+async function applyPattern(){await ack('SET PATTERN '+$('pattern').value,'SET PATTERN');await query('GET STATUS','STATUS');message('Pattern applied.');}
+$('apply-pattern').onclick=action(applyPattern);$('pattern').onchange=action(applyPattern);
+async function applyBrightness(){await ack('SET BRIGHTNESS '+brightness($('brightness').value),'SET BRIGHTNESS');await query('GET STATUS','STATUS');}
+$('brightness').oninput=()=>{$('brightness-label').textContent=brightness($('brightness').value)+'%';clearTimeout(brightnessTimer);if(identity&&!transferring&&!serviceBusy)brightnessTimer=setTimeout(()=>applyBrightness().catch(error=>message(error.message,'error')),120);};
+$('apply-brightness').onclick=action(async()=>{clearTimeout(brightnessTimer);await applyBrightness();message('Brightness applied.');});
+$('apply-colors').onclick=action(async()=>{for(let i=1;i<=4;i++){const color=hexRgb($('color'+i).value);await ack(`SET LED${i} COLOR ${color.join(' ')}`,`SET LED${i} COLOR`);}await query('GET STATUS','STATUS');message('Colors applied. Select SOLID to display them continuously.');});
+function captureTheme(){
+  clearTimeout(themeTimer);themeTimer=null;themeFrames=[];
+  if(!$('pattern-theme').checked)return;
+  themeTimer=setTimeout(()=>{
+    themeTimer=null;const hadFrames=themeFrames.length>0,theme=patternTheme(themeFrames);themeFrames=[];if(hadFrames)themedScene=currentScene;if(!theme)return;
+    for(const [name,value] of Object.entries({bg:theme.bg,card:theme.panel,ink:theme.text,line:theme.border,pink:theme.text,mint:theme.text,muted:theme.text}))document.documentElement.style.setProperty('--'+name,value);
+  },650);
+}
+function resetTheme(){for(const name of ['bg','card','ink','line','pink','mint','muted'])document.documentElement.style.removeProperty('--'+name);}
+function updateScene(data){
+  if(data.pattern && data.pattern!==currentScene){currentScene=data.pattern;if(patterns.includes(data.pattern))$('pattern').value=data.pattern;captureTheme();}
+  $('scene-state').textContent=`${currentScene || 'Unknown pattern'} · ${data.brightness ?? $('brightness').value}% · last update ${new Date().toLocaleTimeString()}`;
+}
+$('reset-theme').onclick=()=>{resetTheme();$('pattern-theme').checked=false;clearTimeout(themeTimer);themeTimer=null;themeFrames=[];};
+$('pattern-theme').onchange=()=>{$('pattern-theme').checked?captureTheme():resetTheme();};
+$('refresh-lights').onclick=action(async()=>{for(const [command,type] of [['GET STATUS','STATUS'],['GET CAPS','CAPS'],['GET LED FRAME','LED_FRAME'],['GET INPUT','INPUT'],['GET OLED','OLED']])await query(command,type);message('Lights and console refreshed.');});
+const pulseTimers=new Map();
+for(const key of INPUT_KEYS){
+  const tile=document.createElement('div');tile.id='input-'+key;tile.className='input-tile unsupported';
+  const title=document.createElement('strong'),value=document.createElement('output');title.textContent=key.toUpperCase();value.id='input-value-'+key;value.textContent='N/A';tile.append(title,value);$('input-tiles').append(tile);
+  const button=document.createElement('button');button.id='key-'+key;button.dataset.key=key;button.textContent=key.toUpperCase();button.onclick=action(()=>sendHostKey(key));$('mini-buttons').append(button);
+}
+function pulseKey(key){if(!INPUT_KEYS.includes(key))return;clearTimeout(pulseTimers.get(key));for(const id of ['input-','key-'])$(id+key).classList.add('active');pulseTimers.set(key,setTimeout(()=>{for(const id of ['input-','key-'])$(id+key).classList.remove('active');pulseTimers.delete(key);},120));}
+async function sendHostKey(key){
+  if(!identity || !deviceControls.has(key) || transferring || serviceBusy || closing || connecting || hostPending>=4)return;
+  hostPending++;try{await ack('KEY '+key,'KEY');pulseKey(key);}finally{hostPending--;}
+}
+const keyboardKeys={ArrowUp:'up',ArrowDown:'down',ArrowLeft:'left',ArrowRight:'right',z:'a',x:'b',a:'x',s:'y',q:'l',w:'r',Enter:'start',Shift:'select'};
+function hostInputAllowed(){const target=document.activeElement;return $('host-input-enabled').checked && !$('home').hidden && document.hasFocus() && !target?.matches('input,textarea,select,[contenteditable=true]');}
+window.addEventListener('keydown',event=>{const key=keyboardKeys[event.key] || keyboardKeys[event.key.toLowerCase()];if(!key || event.repeat || event.ctrlKey || event.metaKey || event.altKey || !hostInputAllowed() || !identity || !deviceControls.has(key))return;event.preventDefault();void sendHostKey(key).catch(error=>message(error.message,'error'));});
+let previousGamepadKeys=new Set(),lastGamepad='';
+function pollGamepad(){
+  let pad;try{pad=Array.from(navigator.getGamepads?.() || []).find(p=>p?.connected);}catch(error){$('gamepad-state').textContent='Gamepad access unavailable in this browser.';log(error.message,'warn','GAMEPAD');return;}
+  const label=pad ? `${pad.id} · ${pad.mapping==='standard'?'standard mapping':'mapping unsupported'}` : 'No gamepad detected · press a controller button to discover it';
+  if(label!==lastGamepad){$('gamepad-state').textContent=label;lastGamepad=label;}
+  const keys=gamepadKeys(pad);
+  if(hostInputAllowed())for(const key of keys)if(!previousGamepadKeys.has(key))void sendHostKey(key).catch(error=>message(error.message,'error'));
+  previousGamepadKeys=keys;requestAnimationFrame(pollGamepad);
+}
+requestAnimationFrame(pollGamepad);
 for(let m=1;m<=12;m++) $('birth-month').add(new Option(new Date(2000,m-1,1).toLocaleString('en',{month:'long'}),String(m).padStart(2,'0')));
 async function syncClock() {await ack('SET TIMEZONE '+$('timezone').value,'SET TIMEZONE');await ack('SET CLOCK UNIX '+Math.floor(Date.now()/1000),'SET CLOCK UNIX');await ack('SAVE');}
 $('sync-clock').onclick=action(async()=>{await syncClock();message('Clock synced and time zone saved.');});
@@ -241,7 +321,7 @@ $('download-report').onclick=action(()=>{
   diagnostics.flush();const report=buildReport({logger:diagnostics,environment:environment(),identity:latestIdentity,snapshots,tests:testResults,notes:$('support-notes').value,observations:{screen:$('observe-screen').value,lights:$('observe-lights').value,touch:$('observe-touch').value}});
   downloadFile('happyjarz-support-'+new Date().toISOString().replaceAll(':','-')+'.json',JSON.stringify(report,null,2),'application/json');message('Support report downloaded. You can review it and send it to us.');
 });
-$('download-log').onclick=()=>{diagnostics.flush();downloadFile('happyjarz-session-log.txt',`HAPPY JARZ Web Studio 0.2.0\nExported ${new Date().toISOString()}\nOlder events dropped: ${diagnostics.dropped}\n`+JSON.stringify(environment(),null,2)+'\n\n'+diagnostics.entries.map(e=>`${e.at} ${e.level.toUpperCase()} ${e.kind} ${e.text}`).join('\n'),'text/plain');};
+$('download-log').onclick=()=>{diagnostics.flush();downloadFile('happyjarz-session-log.txt',`HAPPY JARZ Web Studio 0.3.0\nExported ${new Date().toISOString()}\nOlder events dropped: ${diagnostics.dropped}\n`+JSON.stringify(environment(),null,2)+'\n\n'+diagnostics.entries.map(e=>`${e.at} ${e.level.toUpperCase()} ${e.kind} ${e.text}`).join('\n'),'text/plain');};
 $('clear-log').onclick=()=>{if(confirm('Delete retained diagnostic logs from this browser?')){diagnostics.clear();renderDiagnostics();}};
 $('log-filter').onchange=renderDiagnostics;
 window.addEventListener('error',event=>{const target=event.target;if(target!==window)log('Resource failed: '+target?.tagName,'error','RESOURCE');else log(`${event.message}\n${event.error?.stack||''}`,'error','JAVASCRIPT');},true);

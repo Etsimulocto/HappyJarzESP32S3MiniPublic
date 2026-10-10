@@ -45,3 +45,25 @@ test('support reports retain hardware evidence and observations without private 
   const report=buildReport({logger,environment:{language:'de-DE',timezone:'Europe/Berlin'},identity:{serial:'HJ-123',fw:'0.18.4'},snapshots:{PROFILE:{at:'2026-10-10T00:00:00Z',fields:{owner:'private-name',birthday:'08-25'}},POWER:{at:'2026-10-10T00:00:01Z',fields:{voltage:'3.8',percent:'55'}}},tests:[{command:'TEST RGB',result:'response received',detail:'rgb=PASS'}],notes:'Screen blank after switch',observations:{screen:'Blank'}});
   assert.equal(report.identity.serial,'HJ-123');assert.equal(report.readouts.POWER.fields.voltage,'3.8');assert.equal(report.observations.screen,'Blank');assert.ok(!JSON.stringify(report).includes('private-name'));assert.equal(report.entries[0].level,'error');
 });
+
+import { rgb, rgbHex, hexRgb, brightness, capabilities, gamepadKeys, patternTheme } from '../web-controller/lights.mjs';
+test('light colors reject malformed telemetry and brightness obeys the board ceiling',()=>{
+  assert.deepEqual(rgb('255,0,16'),[255,0,16]);assert.equal(rgbHex([255,0,16]),'#ff0010');assert.deepEqual(hexRgb('#FF0010'),[255,0,16]);
+  for(const value of ['0,,0','256,0,0','1,2','NaN,0,0',{},[0,-1,2],[0,2.5,0]])assert.equal(rgb(value),null);
+  assert.throws(()=>hexRgb('#fff'));assert.equal(brightness(75),50);assert.equal(brightness(-1),0);assert.equal(brightness('24.6'),25);assert.throws(()=>brightness('broken'));
+});
+test('capabilities and standard gamepad mapping restrict host inputs without guessing',()=>{
+  assert.deepEqual([...capabilities('up,down,left,right,a,b,unknown')],['up','down','left','right','a','b']);assert.equal(capabilities().size,0);
+  const pad={mapping:'standard',buttons:Array.from({length:16},(_,i)=>({pressed:[0,5,9,12].includes(i)})),axes:[-.7,.8]};
+  assert.deepEqual([...gamepadKeys(pad)].sort(),['a','down','left','r','start','up']);
+  assert.equal(gamepadKeys({...pad,mapping:''}).size,0);assert.equal(gamepadKeys(null).size,0);
+  assert.equal(gamepadKeys({mapping:'standard',axes:[.3,-.3]}).size,0);
+});
+test('pattern theme freezes a useful palette and ignores dark/off frames',()=>{
+  assert.equal(patternTheme([[[0,0,0],[1,1,1]]]),null);
+  const frame=[[255,40,150],[0,240,255],[255,40,150],[0,240,255]],theme=patternTheme([frame]);
+  for(const value of Object.values(theme))assert.match(value,/^#[0-9a-f]{6}$/);
+  const lum=color=>{const c=hexRgb(color).map(n=>{n/=255;return n<=.04045?n/12.92:((n+.055)/1.055)**2.4;});return .2126*c[0]+.7152*c[1]+.0722*c[2];};
+  for(const surface of ['bg','panel'])assert.ok((lum(theme.text)+.05)/(lum(theme[surface])+.05)>=4.5);
+  assert.deepEqual(patternTheme([frame,frame]),theme);
+});

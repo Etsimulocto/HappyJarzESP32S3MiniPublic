@@ -75,3 +75,9 @@ Mark a firmware release verified only after a clean compile with the documented 
 - Copied the original BloomCircuit BloomSaver Glitter engine into an isolated same-origin iframe background, with its 22 editable sliders, symbols, seeds, randomize/mutate and presets. Added edit/done, pause, current-setting persistence, reduced-motion default pause, hidden-page paint suppression, lower embedded defaults and about 30 FPS. Palette hooks are confined to this iframe.
 - Twelve Node tests passed. Added original-engine VM checks for controls, pause/edit, message origin/source checks and stored settings, plus media URL validation and actual Monday module song-saving integration. Browser smoke coverage was extended for the iframe editor, slider and music link but remains unexecuted in this environment. Visual layout, iframe interactions and actual Pi/mobile rendering performance still require browser trials.
 - No firmware change, paid hosting service, domain purchase, external font subscription or automatic support upload accompanies this update.
+
+## Web Studio draft 0.6 — Architect-curated media
+
+- Published the supplied glitter-jar PNG unchanged and Suno share link `https://suno.com/s/cuHjog2hpKZ3MOVF`. No visitor media upload/edit/clear UI remains, and legacy local media overrides are ignored.
+- Content changes are committed through repository write permissions; the static site contains no admin password, write token or upload backend. Repository collaborators with write access can also publish, so the repository access list remains authoritative.
+- Twelve Node checks passed, with integration coverage updated for published song/art loading and absent editing controls. Browser visual/USB verification remains pending. No firmware flash is needed.

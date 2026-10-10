@@ -35,7 +35,7 @@ export class DiagnosticLog {
   snapshot(){return {entries:this.entries.map(e=>({...e})),dropped:this.dropped,persistence:this.persistence};}
 }
 export function buildReport({logger,environment,identity,snapshots,tests,notes,observations}) {
-  return {schema:'happyjarz-support-v1',createdUtc:new Date().toISOString(),appVersion:'0.5.0',environment,
+  return {schema:'happyjarz-support-v1',createdUtc:new Date().toISOString(),appVersion:'0.6.0',environment,
     identity:identity ? safeFields(identity) : null,
     readouts:Object.fromEntries(Object.entries(snapshots).map(([type,entry])=>[type,{...entry,fields:safeFields(entry.fields)}])),
     tests:tests.map(t=>({...t,command:redact(t.command),detail:redact(t.detail||'')})),

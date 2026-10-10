@@ -48,7 +48,7 @@ try{
  await page.goto(url);await page.locator('#release-status').filter({hasText:'No tested'}).waitFor();
  await page.locator('#background-edit').click();const glitter=page.frameLocator('#bloom-background');await glitter.locator('body.editing').waitFor();assert.equal(await glitter.locator('#controls .control').count(),22);
  await glitter.locator('[data-key=glow]').evaluate(el=>{el.value='8';el.dispatchEvent(new Event('input',{bubbles:true}));});await page.locator('#background-close').click();await page.locator('#bloom-background.editing').waitFor({state:'detached'});
- await page.locator('.monday-corner summary').click();await page.locator('#monday-song-name').fill('Monday online');await page.locator('#monday-song-url').fill('https://suno.com/song/test-song');await page.locator('#monday-song-form button').click();assert.equal(await page.locator('#monday-listen').getAttribute('href'),'https://suno.com/song/test-song');await page.locator('.monday-corner summary').click();
+ assert.equal(await page.locator('#monday-listen').getAttribute('href'),'https://suno.com/s/cuHjog2hpKZ3MOVF');assert.equal(await page.locator('#monday-images').count(),0);
 
  assert.equal(await page.locator('#apply-pattern').isDisabled(),true);
  await page.locator('#connect').click();await page.locator('#message').filter({hasText:'Your jar is ready'}).waitFor();

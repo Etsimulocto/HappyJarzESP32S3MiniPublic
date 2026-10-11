@@ -92,3 +92,5 @@ Web Studio draft 0.5 adds Monday's pink/teal collage identity, a six-image local
 Web Studio draft 0.6 publishes the Architect's glitter-jar image and selected Suno song. Monday's Corner is now read-only for visitors; media publishing uses GitHub repository write permissions. Public upload/edit/clear controls and browser media overrides were removed. Personal background tuning remains available.
 
 Web Studio draft 0.7 completes the Wi-Fi + Clock tab from the Pi reference: 2.4 GHz scan/select, saved network setup and clearing, USB/internet clock controls, saved alarm and auto-off timer readouts. Time zones remain limited by firmware to four US regions and UTC. This is a web-only update.
+
+Web Studio draft 0.8 completes Display + Input with the OLED mirror, eight screensavers and their controls/readouts, six-pad raw telemetry, Service-recorded calibration, and the Pi-style 50-slot marquee editor. This is a web-only update.

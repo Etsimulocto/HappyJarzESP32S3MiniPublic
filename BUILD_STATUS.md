@@ -87,3 +87,9 @@ Mark a firmware release verified only after a clean compile with the documented 
 - Ported Pi scan/select, saved Wi-Fi connect/test/clear, connection/IP/RSSI readout, host/internet time controls and shared supported time-zone selection.
 - Separate alarm and timer board readouts; alarm validation and persistence, timer start/stop. Explicit refresh confirms asynchronous Wi-Fi/internet sync results.
 - Expanded simulated USB integration coverage; all 12 Node tests pass. No physical board or browser layout validation in this change. No firmware change or flash.
+
+## Web Studio draft 0.8 — Display + Input
+
+- Added OLED preview and display readout, current saver mode/speed/idle/particle telemetry, control modes and six raw touch readouts.
+- Added complete 50-slot marquee load/replace/clear, preserving slot gaps, validated before destructive replacement. Recalibration delegates to Service report history.
+- All 12 Node tests pass with actual-module simulated USB coverage. Hardware and browser layout verification remain outstanding. No firmware change or flash.

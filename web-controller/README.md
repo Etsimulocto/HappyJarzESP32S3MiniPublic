@@ -1,4 +1,4 @@
-# HAPPY JARZ Web Studio — draft 0.7
+# HAPPY JARZ Web Studio — draft 0.8
 
 A static USB browser controller for the existing SuperMini SIMPLE protocol. No backend, account, Python installation, or paid domain required for website users. This is an initial implementation, not a hardware-verified replacement for the Mini app.
 
@@ -133,7 +133,7 @@ All diagnostic timestamps use UTC. Reports also record browser locale, browser t
 
 The layout adapts to phone/tablet widths, including Service cards and wrapped tabs. This does not imply universal phone/tablet USB support. USB permission, browser support and secure-context checks still apply. Wi-Fi configuration currently requires a nonempty password because the firmware's trimmed command parser cannot reliably clear a password with an empty SET command. No board firmware changed in this web update.
 
-## Wi-Fi + Clock — draft 0.7
+## Wi-Fi + Clock — draft 0.8
 
 The separate `tabs/wifi-clock.js` module now carries the Pi setup controls: scan the jar’s visible 2.4 GHz networks, select an SSID, save credentials and connect, retry a saved network, read connection/IP/signal status, and confirm clearing saved Wi-Fi. Scan results are rendered as text and network/password fields remain redacted in diagnostics. Password visibility is optional and the input is cleared after saving and on disconnect.
 
@@ -142,3 +142,13 @@ Clock controls include a shared Profile/Clock time-zone selection, saved time zo
 Alarm controls validate HH:MM, apply enable/disable and save settings. Auto-off controls start/stop a 1–10080 minute timer with separate remaining-time readout. All readouts show last board readings; they are not a locally fabricated countdown. Disconnect clears readouts and scan results. No firmware flash is needed.
 
 Validation: all 12 Node tests pass with expanded actual-module simulated USB coverage for scanning/selecting, time-zone and host/internet sync commands, invalid alarms, timer stop, credential clearing and redacted reports. Browser layout and physical Wi-Fi operation still need testing on a real jar.
+
+## Display + Input — draft 0.8
+
+The separate `tabs/display-input.js` module now includes a 128×64 OLED mirror, manual screen/display refresh, the eight current saver modes (SAYINGS, SPIRAL, TRIPPY, PARTICLES, BLOOM, BREATHE, GLITTER, ART), start/exit, previous/next, reseed and speed controls. Saver telemetry selects the current mode and shows its activity, speed, idle delay and particle settings. Screen brightness remains fixed at 100% by firmware; obsolete brightness/idle sliders are not exposed. The web page background is a separate personal BloomSaver, not the jar OLED.
+
+Touch controls include Jar/Menu/Game mode, six raw pad readings and recalibration. The test delegates to Service so its response, timing and observation workflow remain in downloadable support reports. Keep all fingers off the pads during calibration. Raw touch values do not imply a qualified press.
+
+The marquee editor loads all 50 slots, preserving blank slots, and can replace/save the list, edit one slot, choose BUILTIN/CUSTOM/MIXED, or clear custom messages with confirmation. Firmware persists custom slots and source directly. Replacement validates the whole draft before clearing old messages; an interrupted write can leave a partial list on the jar. Load to check before retrying. Text must fit 96 UTF-8 bytes per slot without protocol separators. Empty CUSTOM lists fall back to built-in sayings. Diagnostic exports redact message text. Disconnect pauses readouts without discarding the local editor draft.
+
+Validation: 12 Node tests pass, including expanded simulated USB coverage for complete marquee responses, slot gaps, save/clear, invalid messages, OLED frame rendering, mode commands and Service-routed calibration. Physical OLED/touch behavior and browser layout still need checking on the jar. No firmware flash required.

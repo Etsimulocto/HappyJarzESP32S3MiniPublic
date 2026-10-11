@@ -6,7 +6,7 @@ export function parseLine(line) {
     const split = field.indexOf('=');
     if (split >= 0) data[field.slice(0, split)] = field.slice(split + 1);
   }
-  return { type, data };
+  return { type, data, event: fields.find(field => !field.includes('=')) }; 
 }
 export function profileCommand(owner, month, day) {
   owner = owner.trim();

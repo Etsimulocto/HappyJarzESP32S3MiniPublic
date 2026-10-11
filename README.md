@@ -7,7 +7,7 @@ This repository contains the HAPPY JARZ ESP32-S3 SuperMini firmware and its matc
 | Component | Version / target |
 | --- | --- |
 | Firmware source | **0.18.5** (full build/physical test pending) |
-| Pi Mini app | **1.11.0** |
+| Pi Mini app | **1.11.1** |
 | Board | SIMPLE / ESP32-S3 SuperMini / 4 MB flash |
 
 Firmware, app, USB watcher, controller and art tools are all here. This checkout builds directly from `firmware/HappyJarzMini`; the BloomCircuit staging/patch flasher belongs to the older repository. See [firmware instructions](firmware/README.md) and [recorded verification](BUILD_STATUS.md).
@@ -53,6 +53,12 @@ nohup /usr/bin/python3 "$PWD/mini-app/happyjarz_plug_watch.py" >/dev/null 2>&1 <
 ```
 
 The watcher launches the app only after receiving a HAPPY JARZ identity. It uses a single-instance lock, checks this checkout's Git upstream for fast-forward app/source updates, and leaves firmware uploading to the separate update process. The board's serial is derived from its ESP32 chip ID. Logs are in `~/.happyjarz/`.
+
+### USB startup fix — Pi app 1.11.1
+
+Both controller and watcher now allow a 12-second identity handshake, retaining the 1.50-second boot settling delay and inactive DTR/RTS. The Pi traced the previous probe closing at 5.59 seconds while firmware 0.18.5 was still starting. This is an app-only change; no firmware compile/upload is required. Actual reconnect verification remains pending.
+
+BloomScope and BRO login watchers can probe the same Espressif USB device with default serial control lines and interfere before identifying its firmware. Disable their competing login entries and stop those watchers when using this controller; see [Mini app startup notes](mini-app/README.md). Their applications can remain installed for manual use.
 
 ## Standalone profile and birthday countdown
 

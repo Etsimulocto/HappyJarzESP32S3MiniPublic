@@ -44,7 +44,7 @@ SCAN_SECONDS = 1.0
 # Opening the ESP32-S3 CDC/JTAG port can reset the chip. The Mini takes about
 # 1.5 seconds to calibrate its touch inputs before it starts answering HELLO,
 # so keep DTR/RTS inactive and allow enough time for setup to finish.
-HANDSHAKE_TIMEOUT = 4.0
+HANDSHAKE_TIMEOUT = 12.0
 HELLO_RETRY_SECONDS = 0.25
 LOG_DIR = Path.home() / ".happyjarz"
 LOG_FILE = LOG_DIR / "controller.log"

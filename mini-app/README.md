@@ -1,6 +1,6 @@
 # HAPPY JARZ Pi Mini app
 
-Current app version: **1.11.0** (see `VERSION`). Matching firmware source: **0.18.4**.
+Current app version: **1.11.1** (see `VERSION`). Matching firmware source: **0.18.5**.
 
 From the repository root, launch with `python3 mini-app/app.py`; the command below is for running inside `mini-app/`.
 
@@ -22,7 +22,11 @@ Log out and back in to start it, or start the watcher manually for this session:
 /usr/bin/python3 mini-app/happyjarz_plug_watch.py
 ```
 
-The watcher uses a single-instance lock. The controller and watcher request exclusive serial access on POSIX and retry discovery when another USB watcher has the port.
+The watcher uses a single-instance lock. The controller and watcher request exclusive serial access on POSIX and retry discovery when another USB watcher has the port. Exclusive access is advisory: unrelated programs that do not request the same lock can still interfere.
+
+App 1.11.1 gives both USB handshakes 12 seconds while retaining the proven 1.50-second settling delay and inactive DTR/RTS. A Pi trace of firmware 0.18.5 showed the old watcher timing out at 5.59 seconds after opening, before calibration/identity completed. This extends startup tolerance; reconnect testing on the actual board is still required.
+
+Disable competing BloomScope/BRO login watchers on the Pi before testing HAPPY JARZ. Their installers create `~/.config/autostart/bloomscope-plug-watch.desktop` and `bloomface-plug-watch.desktop`; moving these entries outside the autostart directory prevents their next-login startup. Stop their running processes separately. Keep their app/code files for manual use. Re-running their installers recreates the entries. A USB reconnect after cleanup may be needed to recover the current connection. Firmware uploading is a separate operation.
 
 Dependencies are Python 3, Tkinter, and pyserial. On Raspberry Pi OS, install Tkinter and pyserial with:
 

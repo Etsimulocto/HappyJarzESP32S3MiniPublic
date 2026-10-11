@@ -105,3 +105,8 @@ Mark a firmware release verified only after a clean compile with the documented 
 - Added 24 original deterministic pixel icons, stamp scales, six shape tools, fill/erase, connected freehand brush strokes and per-frame undo.
 - Added clipping, drag previews and cancellation rollback; existing XBM transfer format preserved.
 - All 14 Node tests pass with raster and actual pointer-handler coverage. Hardware/browser layout validation remains outstanding. Web-only change.
+
+## Web Studio draft 0.11 — Curated stamp library
+
+- Expanded Art to 96 distinct original pixel masks, six categories, search and compact scrollable fixed-height rows.
+- All 14 tests pass, including each mask’s erase/clipping and category/search integration. Browser appearance needs user verification. No firmware changes.

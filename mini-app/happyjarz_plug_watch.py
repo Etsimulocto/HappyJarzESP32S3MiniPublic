@@ -15,17 +15,22 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+try:
+    import fcntl
+except ImportError:  # Windows: no POSIX file lock is available.
+    fcntl = None
+
 import serial
 from serial.tools import list_ports
 
 BAUD = 115200
 PROBE_TIMEOUT = 0.25
-HANDSHAKE_SECONDS = 4.0
-BOOT_SETTLE_SECONDS = 0.10
+HANDSHAKE_SECONDS = 12.0
+BOOT_SETTLE_SECONDS = 1.50
 HELLO_RETRY_SECONDS = 0.25
 SCAN_SECONDS = 0.20
 RETRY_SECONDS = 1.0
-PORT_RELEASE_SECONDS = 0.30
+PORT_RELEASE_SECONDS = 0.05
 UPDATE_SECONDS = 6 * 60 * 60
 UPDATE_RETRY_SECONDS = 15 * 60
 
@@ -34,6 +39,7 @@ REPO = HERE.parent
 CONTROLLER = HERE / "app.py"
 LOG_DIR = Path.home() / ".happyjarz"
 WATCH_LOG = LOG_DIR / "plug_watch.log"
+WATCH_LOCK = LOG_DIR / "plug_watch.lock"
 LAUNCH_LOG = LOG_DIR / "controller_launch.log"
 
 
@@ -123,6 +129,7 @@ def identify_happy_jar(port_name: str) -> str | None:
             write_timeout=0.5,
             dsrdtr=False,
             rtscts=False,
+            exclusive=(os.name == "posix"),
         )
         # Older PySerial on Raspberry Pi rejects dtr/rts constructor kwargs.
         # Set both control lines inactive while closed, before opening the port.
@@ -172,6 +179,15 @@ def main() -> None:
     launched_generation = None
     retry_after: dict[str, float] = {}
     update_pending_restart = False
+
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    watcher_lock = WATCH_LOCK.open("a", encoding="utf-8")
+    if fcntl is not None:
+        try:
+            fcntl.flock(watcher_lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            log("Another HAPPY JARZ plug watcher is already running; exiting")
+            return
 
     log("HAPPY JARZ plug watcher started")
 

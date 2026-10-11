@@ -1,6 +1,8 @@
 # HAPPY JARZ Pi Mini app
 
-Current app version: `1.9.3` (see `VERSION`).
+Current app version: **1.11.2** (see `VERSION`). Matching firmware source: **0.18.5**.
+
+From the repository root, launch with `python3 mini-app/app.py`; the command below is for running inside `mini-app/`.
 
 Launch the controller UI:
 
@@ -8,13 +10,23 @@ Launch the controller UI:
 python3 app.py
 ```
 
-The USB plug watcher sends the board a newline-terminated `HELLO` and opens this controller after the HAPPY JARZ identity reply.
-
-Launch the USB plug watcher:
+Install one desktop autostart watcher from the repository root:
 
 ```bash
-python3 happyjarz_plug_watch.py
+sh mini-app/install_autostart.sh
 ```
+
+Log out and back in to start it, or start the watcher manually for this session:
+
+```bash
+/usr/bin/python3 mini-app/happyjarz_plug_watch.py
+```
+
+The watcher uses a single-instance lock. The controller and watcher request exclusive serial access on POSIX and retry discovery when another USB watcher has the port. Exclusive access is advisory: unrelated programs that do not request the same lock can still interfere.
+
+App 1.11.1 gives both USB handshakes 12 seconds while retaining the proven 1.50-second settling delay and inactive DTR/RTS. A Pi trace of firmware 0.18.5 showed the old watcher timing out at 5.59 seconds after opening, before calibration/identity completed. This extends startup tolerance; reconnect testing on the actual board is still required.
+
+Disable competing BloomScope/BRO login watchers on the Pi before testing HAPPY JARZ. Their installers create `~/.config/autostart/bloomscope-plug-watch.desktop` and `bloomface-plug-watch.desktop`; moving these entries outside the autostart directory prevents their next-login startup. Stop their running processes separately. Keep their app/code files for manual use. Re-running their installers recreates the entries. A USB reconnect after cleanup may be needed to recover the current connection. Firmware uploading is a separate operation.
 
 Dependencies are Python 3, Tkinter, and pyserial. On Raspberry Pi OS, install Tkinter and pyserial with:
 
@@ -22,4 +34,40 @@ Dependencies are Python 3, Tkinter, and pyserial. On Raspberry Pi OS, install Tk
 sudo apt-get install python3-tk python3-serial
 ```
 
-The app includes the 128×64 monochrome art editor. Artwork is stored in `~/.happyjarz/art_library.json` and can be exported as U8g2 C headers. Firmware 0.17.13 has no art-transfer command, so saved art remains on the Pi until that firmware feature is designed and added.
+## Owner profile
+
+The PROFILE tab stores an owner's name and annual birthday (month and day; no birth year or age) in `~/.happyjarz/device_profiles.json`, keyed by the Jar's unique ESP32 chip ID. The Jar stores the same profile in its settings memory, so it remains there if the Pi profile file is unavailable. Save Profile + Sync Clock writes the profile and syncs the Jar's time over USB. The app also syncs time on connection.
+
+The app shows a countdown to the next birthday. A February 29 birthday is observed on March 1 in non-leap years. Firmware 0.18.4 runs all-day Birthday Mode when the clock has the correct local date: animated cake/balloon/confetti/present/wish screens mixed with the selected screensaver, gentle rainbow shimmer at the selected brightness, and normal color/pattern restoration at midnight. On the present screen, physical or Mini **A** opens a random wish for six seconds; **B** exits the screensaver. Selecting a color or pattern takes control of the lights for the rest of the powered birthday session. OFF is honored. If the Jar clock loses time, the saved profile remains; connecting the app synchronizes the clock again. CLEAR PROFILE removes the name and birthday from both the Pi and Jar.
+
+## Standalone board controls
+
+Owners can also use **HOME → A → PROFILE → A** to set name, birthday and date/time without a Pi or PC. The Jar's profile remains in Preferences/NVS after full power loss, but its clock requires setting or syncing again.
+
+The OLED/lamp 3.3 V accessory switch leaves the ESP32 powered. Every OFF → ON restore shows the birthday countdown for five seconds when the birthday and clock are valid; on the birthday it shows the cake greeting.
+
+To try Birthday Mode, temporarily save today's month/day in PROFILE, check the birthday screens and present, then restore the real birthday.
+
+## Updates and logs
+
+The USB watcher checks this Git checkout for safe fast-forward source/app updates. Firmware must be compiled and uploaded separately using the [firmware update workflow](../firmware/README.md#compile-and-upload-on-raspberry-pi).
+
+Keep USB connected and the accessory switch steady until upload completes and the app opens. Use `~/.happyjarz/firmware_update.exit` and `firmware_update.log` to check the update; use `plug_watch.log`, `controller_launch.log` and `controller.log` for launch/connection diagnostics.
+
+## Art gallery
+
+The ART tab includes the 128×64 monochrome frame maker with one- or two-frame drawings. Name and save each drawing to add it to **MY PICTURES**; the list has a scrollbar. Only saved drawings are transferred. The gallery holds up to 50 pictures and can be exported as U8g2 C headers. Use **Send gallery to Jar** to transfer the saved pictures over USB. The first transfer formats the board's dedicated art filesystem after an explicit confirmation.
+
+After transfer, select **ART GALLERY** in the screensaver controls under **DISPLAY + INPUT** to start cycling through the stored drawings. Two-frame pieces animate on the OLED. The board can keep the gallery and run it with USB disconnected.
+
+Each one-bit frame uses 1,024 bytes. Fifty two-frame pieces are about 100 KiB of image data. They are saved in SPIFFS flash storage, not in the settings NVS partition.
+
+## Input readout refresh — app 1.11.2
+
+All supported physical-input tiles read the board's INPUT/TOUCH fields, including L/R/Start. Some firmware 0.18.5 OLED pages return before live input telemetry runs. The app tracks the last input packet and requests GET INPUT once per second if telemetry has stopped; it skips that request while streaming remains fresh. This restores raw readouts without a firmware reflash or changing touch thresholds. The GET INPUT and TEST INPUT controls are in DISPLAY + INPUT under CONTROL MAP; Service also offers Input test.
+
+Host tests exercise the actual refresh method and nine-field parser. Actual physical L/R/Start press/release response remains to be verified on the Architect's board.
+
+## Expanded physical inputs
+
+Firmware 0.18.5 advertises L on GPIO11, R on GPIO12 and Start on GPIO13 in addition to the original six touch controls. Existing Pi tiles, virtual buttons and gamepad routing follow GET CAPS and read the extra INPUT fields. Older firmware keeps those buttons disabled. Calibrate with every pad untouched. The new keys are independent events; existing on-board games/menu actions are unchanged. See [touch wiring and checks](../firmware/README.md#l--r--start-touch-expansion--firmware-0185).

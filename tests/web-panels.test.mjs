@@ -1,0 +1,101 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+
+// Execute the actual panel modules and shared serial shell against a minimal
+// DOM and a simulated firmware stream. This verifies wiring/commands, not layout.
+test('all panels mount and share one USB session through controls, reports and reconnect',async()=>{
+ const html=await readFile(new URL('../web-controller/index.html',import.meta.url),'utf8'),elements=new Map(),downloads=[],listeners={};
+ class Element{
+  constructor(tag='div'){this.tagName=tag.toUpperCase();this.dataset={};this.style={setProperty(){},removeProperty(){}};this.options=[];this.children=[];this.value='';this.hidden=false;this.disabled=false;this.textContent='';this.checked=false;this.classes=new Set();this.classList={add:v=>this.classes.add(v),remove:v=>this.classes.delete(v),toggle:(v,on)=>on?this.classes.add(v):this.classes.delete(v)};}
+  set id(value){this._id=value;elements.set(value,this);}get id(){return this._id;}
+  set innerHTML(value){parse(value);}append(...children){this.children.push(...children);}replaceChildren(...children){this.children=children;}add(option){this.options.push(option);}
+  addEventListener(){}focus(){doc.activeElement=this;}setAttribute(key,value){this[key]=value;}matches(selector){return ['INPUT','TEXTAREA','SELECT'].includes(this.tagName);}
+  setPointerCapture(){}getBoundingClientRect(){return {left:0,top:0,width:128,height:64};}
+  getContext(){return {createImageData:(w,h)=>({data:new Uint8ClampedArray(w*h*4)}),putImageData:image=>{this.pixels=image.data;}};}
+  click(){if(this.download)downloads.push(this);else return this.onclick?.({preventDefault(){}});}
+ }
+ function parse(source){for(const match of source.matchAll(/<(\w+)\b([^>]*)>/g)){const el=new Element(match[1]),attrs=match[2];for(const attr of attrs.matchAll(/([\w-]+)="([^"]*)"/g)){const [,key,value]=attr;if(key==='id')el.id=value;else if(key.startsWith('data-'))el.dataset[key.slice(5)]=value;else el[key]=value;}if(/\bdata-device\b/.test(attrs))el.dataset.device='';el.hidden=/\bhidden\b/.test(attrs);el.checked=/\bchecked\b/.test(attrs);if(el.id)elements.set(el.id,el);if(el.dataset.tab || el.dataset.command || el.dataset.query)elements.set(Symbol(),el);}}
+ parse(html);for(const id of ['pattern-theme'])elements.get(id).checked=true;elements.get('log-filter').value='all';
+ for(const id of ['timezone'])elements.get(id).options=[{value:'America/Chicago'}];elements.get('timezone').value='America/Chicago';
+ const find=id=>{const el=elements.get(id);if(!el)throw Error('Missing DOM control '+id);return el;};
+ const doc={addEventListener(){},getElementById:find,createElement:tag=>new Element(tag),activeElement:null,documentElement:new Element(),hasFocus:()=>true,
+ querySelectorAll(selector){return [...elements.values()].filter(el=>selector==='.panel'?el.class==='panel':selector.startsWith('[data-')?Object.hasOwn(el.dataset,selector.slice(6,-1)):false);},
+ querySelector(selector){const key=selector.match(/data-tab="([^"]+)"/)[1];return this.querySelectorAll('[data-tab]').find(el=>el.dataset.tab===key);}};
+ const values=new Map([['happyjarz.monday.media.v1',JSON.stringify({song:'https://suno.com/song/old-local-track',images:[]})]]),storage={getItem:k=>values.get(k),setItem:(k,v)=>values.set(k,v)};
+ let profile={owner:'Quarter',birthday:'08-25'};const sayings=Array(50).fill('');let sayingSource='BUILTIN';const sent=[];let stream,openCount=0,closeCount=0,rejectNext=false;
+ const emit=line=>stream.enqueue(new TextEncoder().encode(line+'\n'));
+ const frame='HJ|LED_FRAME|pattern=SOLID|brightness=50|led1=32,0,64|led2=0,32,64|led3=32,0,64|led4=0,32,64';
+ const serial={requestPort:async()=>({getInfo:()=>({usbVendorId:123}),open:async function(){openCount++;this.readable=new ReadableStream({start:c=>{stream=c;}});this.writable=new WritableStream({write(bytes){for(const cmd of new TextDecoder().decode(bytes).trim().split('\n')){
+ sent.push(cmd);if(rejectNext){rejectNext=false;emit('HJ|ERR|message=Test rejection');continue;}
+ const responses={'HELLO':'HJ|IDENTITY|serial=HJ-TEST|hw=V1|fw=0.18.4','GET PROFILE':`HJ|PROFILE|owner=${profile.owner}|birthday=${profile.birthday}`,'GET STATUS':'HJ|STATUS|pattern=SOLID|brightness=50|led1=32,0,64|led2=0,32,64|led3=32,0,64|led4=0,32,64','GET POWER':'HJ|POWER|sensor=OK|percent=55|voltage=3.8|usb_data=1|charge=HW_ONLY|adc_mv=2380','GET CAPS':'HJ|CAPS|profile=SIMPLE|controls=up,down,left,right,a,b','GET TIME STATUS':'HJ|TIME|timezone=America/Chicago|local=2026-10-10T18:00:00','GET INPUT':'HJ|INPUT|up=100|a=101','GET WIFI STATUS':'HJ|WIFI|state=CONNECTED|ssid=PrivateNetwork|rssi=-50','GET ALARM':'HJ|ALARM|enabled=0|time=07:30','GET TIMER':'HJ|TIMER|enabled=0|remaining=0','GET DISPLAY':'HJ|DISPLAY|brightness=100','GET SAVER STATUS':'HJ|SAVER|active=0|mode=ART','GET LED FRAME':frame,'GET OLED':'HJ|OLED|seq=1|codec=b64v1|data='+Buffer.alloc(1024).toString('base64'),'PING':'HJ|PONG','TEST RGB':'HJ|TEST|rgb=PASS','TEST TOUCH':'HJ|TEST|input=PASS','TEST INPUT':'HJ|TEST|input=PASS','ART READY':'HJ|ART|ACK|event=READY|ready=1'};
+ if(cmd==='GET CUSTOM SAYINGS'){emit('HJ|CUSTOM_SAYINGS|BEGIN|source='+sayingSource);sayings.forEach((text,i)=>emit('HJ|CUSTOM_SAYING|slot='+(i+1)+'|text='+text));emit('HJ|CUSTOM_SAYINGS|END|source='+sayingSource);}else if(cmd==='SCAN WIFI'){emit('HJ|WIFI_SCAN|BEGIN');emit('HJ|WIFI_SCAN|NET|ssid=PrivateNetwork|rssi=-50|channel=6|security=WPA2');emit('HJ|WIFI_SCAN|END|count=1');}else if(responses[cmd])emit(responses[cmd]);else if(cmd.startsWith('ART BEGIN '))emit('HJ|ART|ACK|event=BEGIN|slot='+cmd.split(' ')[2]);else if(cmd.startsWith('ART DATA ')){const parts=cmd.split(' ');emit(`HJ|ART|ACK|event=DATA|slot=${parts[2]}|offset=${Number(parts[3])+parts[4].length/2}`);}else if(cmd.startsWith('ART END '))emit('HJ|ART|ACK|event=END|slot='+cmd.split(' ')[2]);else{
+ const prefix=['SET INPUT MODE','SET WIFI SSID','SET WIFI PASSWORD','SET TIMER MINUTES','SET SAVER MODE','SET CUSTOM SAYING','SET SAYING SOURCE'].find(p=>cmd.startsWith(p+' '));
+ const key=prefix || (cmd.startsWith('SET ALARM ') && !/SET ALARM (ON|OFF)$/.test(cmd)?'SET ALARM':null) || (cmd.startsWith('SET LED')?cmd.split(' ').slice(0,3).join(' '):cmd.startsWith('SET PROFILE')?'SET PROFILE':cmd.startsWith('SET CLOCK UNIX')?'SET CLOCK UNIX':cmd.startsWith('SET TIMEZONE')?'SET TIMEZONE':cmd.startsWith('SET PATTERN')?'SET PATTERN':cmd.startsWith('SET BRIGHTNESS')?'SET BRIGHTNESS':cmd.startsWith('KEY ')?'KEY':cmd);
+ if(cmd==='CLEAR PROFILE')profile={owner:'',birthday:'--'};if(cmd.startsWith('SET PROFILE ')){const parts=cmd.split(' ');profile={birthday:parts[2],owner:parts.slice(3).join(' ')};}
+ if(cmd==='CLEAR CUSTOM SAYINGS')sayings.fill('');if(cmd.startsWith('SET CUSTOM SAYING ')){const parts=cmd.split(' ');sayings[Number(parts[3])-1]=parts.slice(4).join(' ');}if(cmd.startsWith('SET SAYING SOURCE '))sayingSource=cmd.split(' ')[3];
+ emit('HJ|ACK|command='+key);if(cmd==='STREAM LED ON')emit(frame);if(cmd==='STREAM TOUCH ON')emit(responses['GET INPUT']);}
+ }}});},setSignals:async()=>{},close:async()=>{closeCount++;}})};
+ const saved=new Map();for(const [key,value] of Object.entries({document:doc,window:{addEventListener:(key,fn)=>{const previous=listeners[key];listeners[key]=previous?event=>{previous(event);fn(event);}:fn;}},navigator:{serial,getGamepads:()=>[],language:'en-US',languages:['en-US'],online:true,userAgent:'Node simulated DOM'},Option:class{constructor(text,value){this.text=text;this.value=value;}},localStorage:storage,isSecureContext:true,location:{origin:'http://localhost:8080'},innerWidth:1200,innerHeight:900,matchMedia:()=>({matches:false}),requestAnimationFrame:()=>0,confirm:()=>true,fetch:async path=>({ok:true,json:async()=>path==='./monday-media.json'?{title:'Monday’s HAPPY JARZ mix',song:'https://suno.com/s/cuHjog2hpKZ3MOVF',images:['./assets/happyjarz-glitter.png']}:{schema:1,releases:[]}})})){
+ saved.set(key,Object.getOwnPropertyDescriptor(globalThis,key));Object.defineProperty(globalThis,key,{value,writable:true,configurable:true});}
+ const oldError=console.error,oldWarn=console.warn;
+ try{
+ await import('../web-controller/app.js');await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(doc.querySelectorAll('[data-tab]').length,9);assert.ok(doc.querySelectorAll('[data-tab]').every(el=>!el.disabled),'all panel modules initialized');
+ assert.equal(find('pattern').options.length,100);assert.equal(find('white1').disabled,true);
+ await find('connect').onclick();assert.match(find('message').textContent,/Your jar is ready/);assert.equal(openCount,1);assert.equal(find('key-x').disabled,true);assert.equal(find('key-a').disabled,false);assert.equal(find('live-value1').textContent,'#200040');
+ await find('white1').click();await find('off2').click();assert.ok(sent.includes('SET LED1 COLOR 255 255 255'));assert.ok(sent.includes('SET LED2 COLOR 0 0 0'));
+ find('pattern').value='OCEAN';await find('apply-pattern').click();assert.ok(sent.includes('SET PATTERN OCEAN'));
+ find('brightness').value='99';await find('apply-brightness').click();assert.ok(sent.includes('SET BRIGHTNESS 50'));
+ await find('key-a').click();assert.ok(sent.includes('KEY a'));
+ // Older six-pad firmware stays compatible; newer CAPS unlocks the extras.
+ assert.equal(find('key-l').disabled,true);assert.equal(find('display-pad-start').textContent,'N/A');
+ emit('HJ|CAPS|profile=SIMPLE|controls=up,down,left,right,a,b,l,r,start');await new Promise(resolve=>setImmediate(resolve));
+ for(const key of ['l','r','start']){assert.equal(find('key-'+key).disabled,false);await find('key-'+key).click();assert.ok(sent.includes('KEY '+key));}
+ assert.equal(find('key-x').disabled,true);
+ assert.equal(find('key-l').textContent,'L −');assert.equal(find('key-r').textContent,'R +');
+ assert.match(find('key-start').title,/GPIO13/);
+ assert.equal(find('display-pad-tile-l').children[0].textContent,'L · GPIO11');
+ for(const key of ['l','r','start']){
+   emit('HJ|EVENT|input='+key);await new Promise(resolve=>setImmediate(resolve));
+   assert.ok(find('display-pad-tile-'+key).classes.has('active'));
+   assert.match(find('display-last-press').textContent,new RegExp(key.toUpperCase()+' · source not specified'));
+ }
+ emit('HJ|EVENT|input=l|source=host');await new Promise(resolve=>setImmediate(resolve));
+ assert.match(find('display-last-press').textContent,/host command/);
+ emit('HJ|STATUS|brightness=45|pattern=SOLID');await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(find('brightness').value,45);assert.equal(find('brightness-label').textContent,'45%');
+ emit('HJ|INPUT|up=100|a=101|l=111|r=112|start=113');
+ emit('HJ|TOUCH_CAL|l_base=100|l_thr=120|r_base=200|r_thr=240|start_base=300|start_thr=360');await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(find('display-pad-l').textContent,'111');assert.equal(find('display-pad-r').textContent,'112');assert.equal(find('display-pad-start').textContent,'113');
+ assert.equal(find('input-value-start').textContent,'113');assert.match(find('display-calibration').textContent,/START: baseline 300 · threshold 360/);
+ emit('HJ|CAPS|profile=SIMPLE|controls=up,down,left,right,a,b');await new Promise(resolve=>setImmediate(resolve));
+ for(const key of ['l','r','start']){assert.equal(find('key-'+key).disabled,true);assert.equal(find('display-pad-'+key).textContent,'N/A');}
+ emit('HJ|INPUT|up=100|a=101');await new Promise(resolve=>setImmediate(resolve));
+
+ const event={key:'ArrowUp',preventDefault(){}};listeners.keydown(event);await new Promise(resolve=>setImmediate(resolve));assert.ok(!sent.includes('KEY up'));
+ find('host-input-enabled').checked=true;listeners.keydown(event);await new Promise(resolve=>setImmediate(resolve));assert.ok(sent.includes('KEY up'));doc.activeElement=find('owner');const keysBefore=sent.length;listeners.keydown(event);await new Promise(resolve=>setImmediate(resolve));assert.equal(sent.length,keysBefore);doc.activeElement=null;
+ await find('scan-wifi').click();assert.equal(find('wifi-networks').options.length,1);assert.match(find('wifi-scan-state').textContent,/1 named/);find('wifi-networks').value='0';await find('use-network').click();assert.equal(find('wifi-ssid').value,'PrivateNetwork');
+ find('wifi-ssid').value='PrivateNetwork';find('wifi-password').value='secretword';await find('wifi-form').onsubmit();assert.ok(sent.includes('WIFI CONNECT'));assert.equal(find('wifi-password').value,'');
+ find('clock-timezone').value='UTC';find('clock-timezone').onchange();await find('set-timezone').click();assert.ok(sent.includes('SET TIMEZONE UTC'));await find('sync-host-clock').click();await find('sync-internet-clock').click();assert.ok(sent.includes('TIME SYNC'));
+ const beforeInvalid=sent.length;find('alarm-time').value='29:70';await find('set-alarm').click();assert.equal(sent.length,beforeInvalid);
+ find('alarm-time').value='07:30';await find('set-alarm').click();find('timer-minutes').value='10';await find('set-timer').click();assert.ok(sent.includes('SET TIMER MINUTES 10'));await find('stop-timer').click();assert.match(find('timer-state').textContent,/Stopped/);await find('clear-wifi').click();assert.ok(sent.includes('SET WIFI CLEAR'));assert.equal(find('wifi-ssid').value,'');
+ await find('display-mode-menu').click();assert.match(find('display-input-mode').textContent,/MENU mode/);find('saver-mode').value='ART';await find('set-saver').click();find('saying-slot').value='2';find('saying-text').value='Happy day';await find('save-saying').click();find('saying-source').value='MIXED';await find('set-saying-source').click();assert.ok(sent.includes('SET CUSTOM SAYING 2 Happy day'));assert.equal(find('sayings-list').value,'\nHappy day');
+ find('sayings-list').value='First message\n\nThird message';await find('save-sayings').click();assert.deepEqual(sayings.slice(0,3),['First message','','Third message']);assert.equal(find('sayings-list').value,'First message\n\nThird message');
+ const beforeBadMessages=sent.length;find('sayings-list').value='Bad|message';await find('save-sayings').click();assert.equal(sent.length,beforeBadMessages);await find('load-sayings').click();await find('clear-sayings').click();assert.ok(sayings.every(s=>s===''));assert.equal(find('saying-source').value,'BUILTIN');assert.equal(find('display-pad-up').textContent,'100');emit('HJ|OLED|seq=9|codec=b64v1|data='+Buffer.alloc(1024).toString('base64'));await new Promise(resolve=>setImmediate(resolve));assert.equal(find('display-oled').pixels.length,32768);
+ 
+ find('owner').value='Cat';find('birth-month').value='06';find('birth-day').value='11';await find('profile-form').onsubmit();assert.ok(sent.includes('SET PROFILE 06-11 Cat'));assert.ok(sent.includes('SET TIMEZONE America/Chicago'));assert.match(find('profile-saved').textContent,/Cat/);assert.match(find('profile-countdown').textContent,/until Cat/);
+ find('owner').value='Unsaved';find('owner').oninput();emit('HJ|PROFILE|owner=Cat|birthday=06-11');await new Promise(resolve=>setImmediate(resolve));assert.equal(find('owner').value,'Unsaved');await find('load-profile').click();assert.equal(find('owner').value,'Cat');await find('remove-birthday').click();const clockWrites=sent.filter(s=>s.startsWith('SET CLOCK UNIX')).length;await find('save-profile-only').click();assert.ok(sent.includes('SET PROFILE -- Cat'));assert.equal(sent.filter(s=>s.startsWith('SET CLOCK UNIX')).length,clockWrites);await find('clear-profile').click();assert.equal(find('owner').value,'');assert.match(find('profile-saved').textContent,/No owner saved/);
+ find('stamp-category').value='Zodiac';find('stamp-category').onchange();assert.equal(find('stamp-aries').hidden,false);assert.equal(find('stamp-cat').hidden,true);assert.equal(find('stamp-count').textContent,'12 of 108 stamps');find('stamp-category').value='all';find('stamp-search').value='heart';find('stamp-search').oninput();assert.equal(find('stamp-heart').hidden,false);assert.equal(find('stamp-cat').hidden,true);find('stamp-search').value='';find('stamp-category').value='Animals';find('stamp-category').onchange();assert.equal(find('stamp-cat').hidden,false);assert.equal(find('stamp-heart').hidden,true);find('stamp-category').value='all';find('stamp-category').onchange();await find('stamp-heart').click();find('stamp-size').value='2';find('brush-size').value='1';const pointer={pointerId:1,button:0,clientX:64,clientY:32};find('art-canvas').onpointerdown(pointer);find('art-canvas').onpointerup(pointer);assert.ok(find('art-canvas').pixels.some((v,i)=>i%4===0&&v===168));await find('undo-art').click();assert.ok(!find('art-canvas').pixels.some((v,i)=>i%4===0&&v===168));
+ find('art-tool').value='rectangle';find('shape-filled').checked=true;find('art-canvas').onpointerdown({...pointer,clientX:5,clientY:5});find('art-canvas').onpointermove({...pointer,clientX:15,clientY:15});find('art-canvas').onpointerup({...pointer,clientX:15,clientY:15});assert.equal(find('art-canvas').pixels[(10*128+10)*4],168);
+ await find('upload-art').click();assert.ok(sent.includes('ART END 0'));assert.equal(find('upload-art').disabled,false);
+ await doc.querySelector('[data-tab="service"]').click();await find('refresh-service').click();assert.equal(find('message').textContent,'Readouts refreshed.');assert.equal(find('fuel-percent').textContent,'55%');assert.equal(find('fuel-voltage').textContent,'3.8 V');assert.equal(find('fuel-charge').textContent,'HW LED');assert.equal(find('fuel-usb').textContent,'IN');assert.equal(find('fuel-adc').textContent,'2380 mV');for(const id of ['status','wifi','time','display','power','caps','input','saver'])await find('service-read-'+id).click();await find('service-save').click();assert.ok(sent.includes('SAVE'));await find('service-input').click();assert.ok(sent.includes('TEST INPUT'));find('live-power').checked=true;find('live-power').onchange();await new Promise(resolve=>setImmediate(resolve));find('live-power').checked=false;find('live-power').onchange();await find('service-rgb').click();await find('display-test-input').click();await find('service-ping').click();assert.match(find('service-tests').textContent,/Ping: response received/);
+ find('support-notes').value='Screen blank after switch';await find('download-report').click();const report=JSON.parse(await (await oldFetch(downloads.at(-1).href)).text());assert.equal(report.identity.serial,'HJ-TEST');assert.equal(report.userNotes,'Screen blank after switch');assert.equal(report.appVersion,'0.12.0');assert.ok(!JSON.stringify(report).includes('Quarter'));assert.ok(!JSON.stringify(report).includes('secretword'));assert.ok(!JSON.stringify(report).includes('PrivateNetwork'));assert.equal(report.tests.length,4);
+ rejectNext=true;await find('apply-pattern').click();assert.match(find('message').textContent,/Test rejection/);await find('service-ping').click();assert.match(find('message').textContent,/Ping completed/);
+ await find('disconnect').onclick();await new Promise(resolve=>setTimeout(resolve,10));assert.equal(closeCount,1);assert.ok(sent.includes('STREAM TOUCH OFF'));assert.equal(find('key-a').disabled,true);
+ await find('connect').onclick();assert.equal(openCount,2);assert.match(find('message').textContent,/Your jar is ready/);await find('disconnect').onclick();await new Promise(resolve=>setTimeout(resolve,10));assert.equal(closeCount,2);
+ assert.ok(!find('service-log').textContent.includes('PANEL'),find('service-log').textContent);assert.ok(!find('service-log').textContent.includes('BACKGROUND'),find('service-log').textContent);
+ assert.equal(find('monday-listen').href,'https://suno.com/s/cuHjog2hpKZ3MOVF');assert.equal(find('monday-listen').hidden,false);assert.equal(find('monday-gallery').children.length,1);assert.equal(elements.has('monday-song-form'),false);assert.equal(elements.has('monday-images'),false);
+ }finally{await find('disconnect').onclick();await new Promise(resolve=>setTimeout(resolve,1100));console.error=oldError;console.warn=oldWarn;for(const [key,descriptor] of saved){if(descriptor)Object.defineProperty(globalThis,key,descriptor);else delete globalThis[key];}}
+});
+const oldFetch=globalThis.fetch;

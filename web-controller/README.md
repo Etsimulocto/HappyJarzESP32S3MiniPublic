@@ -1,4 +1,4 @@
-# HAPPY JARZ Web Studio — draft 0.12
+# HAPPY JARZ Web Studio — draft 0.13
 
 A static USB browser controller for the existing SuperMini SIMPLE protocol. No backend, account, Python installation, or paid domain required for website users. This is a development implementation with initial PC hardware results, not a fully verified replacement for the Mini app.
 
@@ -226,3 +226,35 @@ Validation: all 14 Node tests pass, including individual reads, save, Input test
 ## Nine-pad firmware support
 
 Firmware 0.18.5 adds L/R/Start on GPIO11/12/13. Lights + Control virtual keys and raw tiles follow advertised capabilities; Display + Input now includes all nine readings and supported calibration fields. Older firmware leaves extras disabled/N/A. X/Y/Select remain unsupported. Existing firmware game/menu bindings are unchanged. All 14 Node tests pass, including capability upgrades/downgrades and extra commands/telemetry. A firmware flash is required to enable the new physical controls; see [firmware wiring/build instructions](../firmware/README.md). Physical pad and full ESP32 build checks remain pending.
+
+## Nine-button controller test — draft 0.13
+
+The nine-pad SuperMini mapping is Up GPIO4, Down GPIO5, Left GPIO9,
+Right GPIO10, A GPIO1, B GPIO2, L GPIO11, R GPIO12, Start GPIO13.
+Display + Input labels each pad with its GPIO and flashes the tile on
+board input events. Lights + Control labels shoulders L − / R + and
+shows their brightness role in button tooltips. Firmware 0.18.6+ applies
+one saved 5% brightness step per qualified press, within 0–50%.
+The web slider follows the board's STATUS response. Start is an independent
+event; Happy Jarz/BloomPetz/DND mode selection remains planned.
+
+On October 11 the Architect confirmed that L/R/Start did not detect touch
+because their GPIO header pins had not been soldered to the board.
+Soldering those joints restored all three physical controls on firmware
+0.18.7. The startup warmup change alone had not solved the fault.
+Different idle counts alone do not diagnose this failure. Before reflashing,
+check the soldered header connection and continuity with power disconnected.
+Calibration PASS means the routine completed, not proof of physical touch.
+Host commands and board presses share the event path; events without a source
+field are labelled source not specified, not certified physical touches.
+
+For a new test controller, connect in Edge/Chrome with other USB controllers
+closed. Check all nine live values and press events, then L/R brightness
+and Start. Existing six-pad firmware still disables unsupported extras.
+After updating the site, use Ctrl+F5 to refresh cached modules.
+No board flash is required for this web update.
+
+Validation: all 14 Node tests passed, including GPIO labels, L/R button roles,
+L/R/Start event feedback, host-source labels, board-reported brightness updates,
+and six-pad capability compatibility. Tests simulate USB; the new controller
+still needs a physical PC trial. No additional firmware changes were made.

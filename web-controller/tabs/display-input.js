@@ -1,10 +1,11 @@
+import { PAD_BINDINGS } from '../lights.mjs';
 const MODES=['SAYINGS','SPIRAL','TRIPPY','PARTICLES','BLOOM','BREATHE','GLITTER','ART'];
 const SOURCES=['BUILTIN','CUSTOM','MIXED'];
-const PADS=['up','down','left','right','a','b','l','r','start'];
+const PADS=Object.keys(PAD_BINDINGS);
 export function init(ctx) {
   const {$,ack,query,request,action,controls,message,log}=ctx;
-  let loading=false,received=new Map();
-  for(const pad of PADS){const tile=document.createElement('div'),name=document.createElement('strong'),value=document.createElement('output');tile.className='input-tile';tile.id='display-pad-tile-'+pad;name.textContent=pad.toUpperCase();value.id='display-pad-'+pad;value.textContent='—';tile.append(name,value);$('display-pad-readouts').append(tile);}
+  let loading=false,received=new Map(),pressTimers=new Map();
+  for(const pad of PADS){const tile=document.createElement('div'),name=document.createElement('strong'),value=document.createElement('output');tile.className='input-tile';tile.id='display-pad-tile-'+pad;name.textContent=pad.toUpperCase()+' · GPIO'+PAD_BINDINGS[pad].pin;tile.title=PAD_BINDINGS[pad].role;value.id='display-pad-'+pad;value.textContent='—';tile.append(name,value);$('display-pad-readouts').append(tile);}
   function source(){const value=$('saying-source').value;if(!SOURCES.includes(value))throw new Error('Choose a supported saying source.');return value;}
   function validText(text){if(/[|\r\n]/.test(text)||new TextEncoder().encode(text).length>96)throw new Error('Each message must fit 96 UTF-8 bytes, with no | or line breaks.');return text;}
   async function exclusive(fn){if(ctx.serviceBusy||ctx.transferring)throw new Error('Wait for the current jar operation to finish.');ctx.serviceBusy=true;controls();try{return await fn();}finally{ctx.serviceBusy=false;controls();}}
@@ -48,6 +49,15 @@ export function init(ctx) {
     if(type==='ACK'&&data.command==='SET INPUT MODE')$('display-input-mode').textContent='Input mode change acknowledged by jar.';
     if(type==='CAPS')for(const pad of PADS)$('display-pad-'+pad).textContent=ctx.deviceControls.has(pad)?'—':'N/A';
     if(type==='INPUT'||type==='TOUCH'){for(const pad of PADS)$('display-pad-'+pad).textContent=ctx.deviceControls.has(pad)?data[pad] ?? '—':'N/A';$('display-input-state').textContent='Live raw values · '+new Date().toLocaleTimeString();}
+    if(type==='EVENT'&&data.input){
+      const pad=data.input.toLowerCase();
+      if(PADS.includes(pad)&&ctx.deviceControls.has(pad)){
+        const tile=$('display-pad-tile-'+pad);
+        clearTimeout(pressTimers.get(pad));tile.classList.add('active');
+        pressTimers.set(pad,setTimeout(()=>{tile.classList.remove('active');pressTimers.delete(pad);},180));
+        $('display-last-press').textContent=`Last board press: ${pad.toUpperCase()} · ${data.source==='host'?'host command':'source not specified'} · ${new Date().toLocaleTimeString()}`;
+      }
+    }
     if(type==='TOUCH_CAL')$('display-calibration').textContent=PADS.filter(p=>ctx.deviceControls.has(p)).map(p=>`${p.toUpperCase()}: baseline ${data[p+'_base'] ?? '—'} · threshold ${data[p+'_thr'] ?? '—'}`).join('\n');
     if(type==='OLED'&&data.codec==='b64v1')try{
       const bytes=Uint8Array.from(atob(data.data),c=>c.charCodeAt(0));if(bytes.length!==1024)throw new Error('Invalid screen byte count');
@@ -55,5 +65,5 @@ export function init(ctx) {
       for(let y=0;y<64;y++)for(let x=0;x<128;x++)image.data.set(bytes[(y>>3)*128+x]&(1<<(y&7))?[168,231,214,255]:[6,11,21,255],(y*128+x)*4);
       canvas.putImageData(image,0,0);$('display-oled-state').textContent='Received screen · frame '+(data.seq || '—')+' · '+new Date().toLocaleTimeString();
     }catch(error){log(error.message,'warn','DISPLAY');}
-  },reset(){loading=false;received.clear();for(const id of ['display-oled-state','display-input-state','saver-state','display-state','display-input-mode'])$(id).textContent='Disconnected · last readings paused.';for(const pad of PADS)$('display-pad-'+pad).textContent='—';$('display-calibration').textContent='No calibration for current connection.';}};
+  },reset(){loading=false;received.clear();$('display-last-press').textContent='No board press reported this session.';for(const id of ['display-oled-state','display-input-state','saver-state','display-state','display-input-mode'])$(id).textContent='Disconnected · last readings paused.';for(const timer of pressTimers.values())clearTimeout(timer);pressTimers.clear();for(const pad of PADS){$('display-pad-'+pad).textContent='—';$('display-pad-tile-'+pad).classList.remove('active');}$('display-calibration').textContent='No calibration for current connection.';}};
 }

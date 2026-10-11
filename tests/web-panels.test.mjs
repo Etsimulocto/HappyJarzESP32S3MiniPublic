@@ -53,6 +53,18 @@ test('all panels mount and share one USB session through controls, reports and r
  emit('HJ|CAPS|profile=SIMPLE|controls=up,down,left,right,a,b,l,r,start');await new Promise(resolve=>setImmediate(resolve));
  for(const key of ['l','r','start']){assert.equal(find('key-'+key).disabled,false);await find('key-'+key).click();assert.ok(sent.includes('KEY '+key));}
  assert.equal(find('key-x').disabled,true);
+ assert.equal(find('key-l').textContent,'L −');assert.equal(find('key-r').textContent,'R +');
+ assert.match(find('key-start').title,/GPIO13/);
+ assert.equal(find('display-pad-tile-l').children[0].textContent,'L · GPIO11');
+ for(const key of ['l','r','start']){
+   emit('HJ|EVENT|input='+key);await new Promise(resolve=>setImmediate(resolve));
+   assert.ok(find('display-pad-tile-'+key).classes.has('active'));
+   assert.match(find('display-last-press').textContent,new RegExp(key.toUpperCase()+' · source not specified'));
+ }
+ emit('HJ|EVENT|input=l|source=host');await new Promise(resolve=>setImmediate(resolve));
+ assert.match(find('display-last-press').textContent,/host command/);
+ emit('HJ|STATUS|brightness=45|pattern=SOLID');await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(find('brightness').value,45);assert.equal(find('brightness-label').textContent,'45%');
  emit('HJ|INPUT|up=100|a=101|l=111|r=112|start=113');
  emit('HJ|TOUCH_CAL|l_base=100|l_thr=120|r_base=200|r_thr=240|start_base=300|start_thr=360');await new Promise(resolve=>setImmediate(resolve));
  assert.equal(find('display-pad-l').textContent,'111');assert.equal(find('display-pad-r').textContent,'112');assert.equal(find('display-pad-start').textContent,'113');

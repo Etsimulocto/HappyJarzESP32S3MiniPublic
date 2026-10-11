@@ -1,3 +1,7 @@
+export const PAD_BINDINGS=Object.freeze({
+  up:{pin:4,role:'Up'},down:{pin:5,role:'Down'},left:{pin:9,role:'Left'},right:{pin:10,role:'Right'},
+  a:{pin:1,role:'Select'},b:{pin:2,role:'Back'},l:{pin:11,role:'Brightness down · 5%'},r:{pin:12,role:'Brightness up · 5%'},start:{pin:13,role:'Independent Start button'}
+});
 export const INPUT_KEYS=['up','down','left','right','a','b','x','y','l','r','start','select'];
 export function rgb(value){const out=Array.isArray(value)?value:typeof value==='string' && /^\d{1,3},\d{1,3},\d{1,3}$/.test(value)?value.split(',').map(Number):null;return out?.length===3 && out.every(n=>Number.isInteger(n)&&n>=0&&n<=255)?out:null;}
 export function rgbHex(value){const color=rgb(value);if(!color)throw new Error('Invalid RGB color.');return '#'+color.map(n=>n.toString(16).padStart(2,'0')).join('');}

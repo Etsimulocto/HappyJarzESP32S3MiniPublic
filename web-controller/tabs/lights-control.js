@@ -1,4 +1,4 @@
-import { INPUT_KEYS, rgb, rgbHex, hexRgb, brightness, capabilities, gamepadKeys, patternTheme } from '../lights.mjs';
+import { PAD_BINDINGS, INPUT_KEYS, rgb, rgbHex, hexRgb, brightness, capabilities, gamepadKeys, patternTheme } from '../lights.mjs';
 export function init(ctx) {
   const { $, ack, query, request, action, controls, message, log } = ctx;
 let brightnessTimer,themeTimer,themeFrames=[],currentScene='',themedScene='',hostPending=0;
@@ -40,8 +40,8 @@ dpad.id='gamepad-dpad';actions.id='gamepad-actions';extras.id='gamepad-extras';
 $('mini-buttons').append(dpad,actions,extras);
 for(const key of INPUT_KEYS){
   const tile=document.createElement('div');tile.id='input-'+key;tile.className='input-tile unsupported';
-  const title=document.createElement('strong'),value=document.createElement('output');title.textContent=key.toUpperCase();value.id='input-value-'+key;value.textContent='N/A';tile.append(title,value);$('input-tiles').append(tile);
-  const button=document.createElement('button');button.id='key-'+key;button.dataset.key=key;button.textContent=({up:'▲',down:'▼',left:'◀',right:'▶'})[key] || key.toUpperCase();button.setAttribute('aria-label',key.toUpperCase());button.onclick=action(()=>sendHostKey(key));(['up','down','left','right'].includes(key)?dpad:['a','b'].includes(key)?actions:extras).append(button);
+  const title=document.createElement('strong'),value=document.createElement('output');title.textContent=key.toUpperCase();tile.title=PAD_BINDINGS[key]?`GPIO${PAD_BINDINGS[key].pin} · ${PAD_BINDINGS[key].role}`:'Available only if the jar advertises it';value.id='input-value-'+key;value.textContent='N/A';tile.append(title,value);$('input-tiles').append(tile);
+  const button=document.createElement('button');button.id='key-'+key;button.dataset.key=key;button.title=tile.title;button.textContent=({up:'▲',down:'▼',left:'◀',right:'▶',l:'L −',r:'R +'})[key] || key.toUpperCase();button.setAttribute('aria-label',key.toUpperCase());button.onclick=action(()=>sendHostKey(key));(['up','down','left','right'].includes(key)?dpad:['a','b'].includes(key)?actions:extras).append(button);
 }
 function pulseKey(key){if(!INPUT_KEYS.includes(key))return;clearTimeout(pulseTimers.get(key));for(const id of ['input-','key-'])$(id+key).classList.add('active');pulseTimers.set(key,setTimeout(()=>{for(const id of ['input-','key-'])$(id+key).classList.remove('active');pulseTimers.delete(key);},120));}
 async function sendHostKey(key){

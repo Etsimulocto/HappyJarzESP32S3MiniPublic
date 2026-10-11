@@ -30,3 +30,5 @@
 @media(max-width:400px){#mini-buttons{padding:10px;gap:8px}#gamepad-dpad{grid-template-columns:repeat(3,40px);grid-template-rows:repeat(3,40px)}#gamepad-actions{grid-template-columns:repeat(2,40px);grid-template-rows:repeat(2,40px)}}
 
 .birthday-card{border:2px solid var(--pink)}#profile-countdown{font:clamp(24px,4vw,36px)/1.25 Impact,system-ui,sans-serif;color:#ffe873}#profile-chip,#profile-draft,#profile-state,#profile-clock,#profile-countdown-detail{font:12px/1.6 ui-monospace,monospace;overflow-wrap:anywhere}#profile-saved{color:var(--mint);overflow-wrap:anywhere}
+
+#art-canvas{display:block;margin:20px auto}

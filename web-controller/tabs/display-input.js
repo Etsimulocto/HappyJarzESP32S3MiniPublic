@@ -4,7 +4,7 @@ const PADS=['up','down','left','right','a','b'];
 export function init(ctx) {
   const {$,ack,query,request,action,controls,message,log}=ctx;
   let loading=false,received=new Map();
-  for(const pad of PADS){const tile=document.createElement('div'),name=document.createElement('strong'),value=document.createElement('output');tile.className='input-tile';name.textContent=pad.toUpperCase();value.id='display-pad-'+pad;value.textContent='—';tile.append(name,value);$('display-pad-readouts').append(tile);}
+  for(const pad of PADS){const tile=document.createElement('div'),name=document.createElement('strong'),value=document.createElement('output');tile.className='input-tile';tile.id='display-pad-tile-'+pad;name.textContent=pad.toUpperCase();value.id='display-pad-'+pad;value.textContent='—';tile.append(name,value);$('display-pad-readouts').append(tile);}
   function source(){const value=$('saying-source').value;if(!SOURCES.includes(value))throw new Error('Choose a supported saying source.');return value;}
   function validText(text){if(/[|\r\n]/.test(text)||new TextEncoder().encode(text).length>96)throw new Error('Each message must fit 96 UTF-8 bytes, with no | or line breaks.');return text;}
   async function exclusive(fn){if(ctx.serviceBusy||ctx.transferring)throw new Error('Wait for the current jar operation to finish.');ctx.serviceBusy=true;controls();try{return await fn();}finally{ctx.serviceBusy=false;controls();}}

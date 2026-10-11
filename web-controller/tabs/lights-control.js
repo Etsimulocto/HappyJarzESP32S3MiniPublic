@@ -35,10 +35,13 @@ $('reset-theme').onclick=()=>{resetTheme();$('pattern-theme').checked=false;clea
 $('pattern-theme').onchange=()=>{$('pattern-theme').checked?captureTheme():resetTheme();};
 $('refresh-lights').onclick=action(async()=>{for(const [command,type] of [['GET STATUS','STATUS'],['GET CAPS','CAPS'],['GET LED FRAME','LED_FRAME'],['GET INPUT','INPUT'],['GET OLED','OLED']])await query(command,type);message('Lights and console refreshed.');});
 const pulseTimers=new Map();
+const dpad=document.createElement('div'),actions=document.createElement('div'),extras=document.createElement('div');
+dpad.id='gamepad-dpad';actions.id='gamepad-actions';extras.id='gamepad-extras';
+$('mini-buttons').append(dpad,actions,extras);
 for(const key of INPUT_KEYS){
   const tile=document.createElement('div');tile.id='input-'+key;tile.className='input-tile unsupported';
   const title=document.createElement('strong'),value=document.createElement('output');title.textContent=key.toUpperCase();value.id='input-value-'+key;value.textContent='N/A';tile.append(title,value);$('input-tiles').append(tile);
-  const button=document.createElement('button');button.id='key-'+key;button.dataset.key=key;button.textContent=({up:'▲',down:'▼',left:'◀',right:'▶'})[key] || key.toUpperCase();button.setAttribute('aria-label',key.toUpperCase());button.onclick=action(()=>sendHostKey(key));$('mini-buttons').append(button);
+  const button=document.createElement('button');button.id='key-'+key;button.dataset.key=key;button.textContent=({up:'▲',down:'▼',left:'◀',right:'▶'})[key] || key.toUpperCase();button.setAttribute('aria-label',key.toUpperCase());button.onclick=action(()=>sendHostKey(key));(['up','down','left','right'].includes(key)?dpad:['a','b'].includes(key)?actions:extras).append(button);
 }
 function pulseKey(key){if(!INPUT_KEYS.includes(key))return;clearTimeout(pulseTimers.get(key));for(const id of ['input-','key-'])$(id+key).classList.add('active');pulseTimers.set(key,setTimeout(()=>{for(const id of ['input-','key-'])$(id+key).classList.remove('active');pulseTimers.delete(key);},120));}
 async function sendHostKey(key){

@@ -100,3 +100,5 @@ Web Studio draft 0.9 completes Profile: jar identity, confirmed name/birthday sa
 Web Studio draft 0.10 adds 24 monochrome emoji-style stamps, six draggable shape tools, fill/erase, adjustable brush and stamp sizes, and 40-step per-frame undo to Art. Existing two-frame drawing/export/upload formats remain compatible. No firmware flash.
 
 Web Studio draft 0.11 expands Art to 96 curated emoji-style pixel stamps with search, six categories and a compact scrolling tray. Stamps remain web assets; board storage use is unchanged.
+
+Web Studio draft 0.12 completes the Pi Service controls with a readable fuel gauge, optional live power refresh, separate Input test, individual diagnostic reads and Save to Jar. Downloadable test/log reports remain local and redacted. No firmware flash required.

@@ -1,4 +1,4 @@
-# HAPPY JARZ Web Studio — draft 0.11
+# HAPPY JARZ Web Studio — draft 0.12
 
 A static USB browser controller for the existing SuperMini SIMPLE protocol. No backend, account, Python installation, or paid domain required for website users. This is an initial implementation, not a hardware-verified replacement for the Mini app.
 
@@ -133,7 +133,7 @@ All diagnostic timestamps use UTC. Reports also record browser locale, browser t
 
 The layout adapts to phone/tablet widths, including Service cards and wrapped tabs. This does not imply universal phone/tablet USB support. USB permission, browser support and secure-context checks still apply. Wi-Fi configuration currently requires a nonempty password because the firmware's trimmed command parser cannot reliably clear a password with an empty SET command. No board firmware changed in this web update.
 
-## Wi-Fi + Clock — draft 0.11
+## Wi-Fi + Clock — draft 0.12
 
 The separate `tabs/wifi-clock.js` module now carries the Pi setup controls: scan the jar’s visible 2.4 GHz networks, select an SSID, save credentials and connect, retry a saved network, read connection/IP/signal status, and confirm clearing saved Wi-Fi. Scan results are rendered as text and network/password fields remain redacted in diagnostics. Password visibility is optional and the input is cleared after saving and on disconnect.
 
@@ -143,7 +143,7 @@ Alarm controls validate HH:MM, apply enable/disable and save settings. Auto-off 
 
 Validation: all 12 Node tests pass with expanded actual-module simulated USB coverage for scanning/selecting, time-zone and host/internet sync commands, invalid alarms, timer stop, credential clearing and redacted reports. Browser layout and physical Wi-Fi operation still need testing on a real jar.
 
-## Display + Input — draft 0.11
+## Display + Input — draft 0.12
 
 The separate `tabs/display-input.js` module now includes a 128×64 OLED mirror, manual screen/display refresh, the eight current saver modes (SAYINGS, SPIRAL, TRIPPY, PARTICLES, BLOOM, BREATHE, GLITTER, ART), start/exit, previous/next, reseed and speed controls. Saver telemetry selects the current mode and shows its activity, speed, idle delay and particle settings. Screen brightness remains fixed at 100% by firmware; obsolete brightness/idle sliders are not exposed. The web page background is a separate personal BloomSaver, not the jar OLED.
 
@@ -153,7 +153,7 @@ The marquee editor loads all 50 slots, preserving blank slots, and can replace/s
 
 Validation: 12 Node tests pass, including expanded simulated USB coverage for complete marquee responses, slot gaps, save/clear, invalid messages, OLED frame rendering, mode commands and Service-routed calibration. Physical OLED/touch behavior and browser layout still need checking on the jar. No firmware flash required.
 
-## Profile — draft 0.11
+## Profile — draft 0.12
 
 The separate `tabs/profile.js` module now includes jar identity/firmware, saved name/birthday, save-only and save-plus-host-clock options, confirmed profile loading/clearing, optional birthday removal and name-byte validation. Loading asks before replacing unsaved edits; unsolicited profile telemetry updates the saved readout without overwriting a dirty editor. Disconnect clears the editor so one jar’s private profile is not carried into the next connection. Profiles persist on the jar; the web app does not maintain the Pi app’s separate local profile database.
 
@@ -163,7 +163,7 @@ If profile saving succeeds but subsequent clock sync fails, the UI reports that 
 
 Validation: all 13 Node tests pass, including calendar boundaries/leap days, profile save/load/clear, dirty-edit protection, removing a birthday and saving without clock writes. Physical jar and browser layout testing remain outstanding. No firmware change or flash.
 
-## Art stamps + shapes — draft 0.11
+## Art stamps + shapes — draft 0.12
 
 Art now includes 24 original monochrome pixel stamps: heart, star, smile, wink, sunglasses, ghost, cat, dog, paw, alien, robot, skull, flower, mushroom, butterfly, moon, sun, lightning, music note, cake, gift, rocket, jar and sparkles. Browser emoji label the buttons; the jar receives deterministic pixel art, not font-rendered emoji. Choose a stamp, set scale 1–4 and tap/drag to place it. Edge placement clips to the 128×64 drawing.
 
@@ -171,10 +171,18 @@ Drag line, rectangle, circle/oval, triangle, diamond or star tools. Fill applies
 
 Validation: all 14 Node tests pass, including stamp masks/scales/erase/clipping, shape fill, actual pointer-handler placement/undo and upload integration. Physical display and browser layout testing remain outstanding.
 
-## Curated stamp library — draft 0.11
+## Curated stamp library — draft 0.12
 
 Art now offers 96 distinct original pixel masks with searchable labels and six categories: Faces, Animals, Nature, Food, Things, Symbols. The tray uses compact fixed-height rows and scrolls after five rows rather than stretching its cells or leaving a large blank area. The collection is stored in the browser app, not the ESP32; adding stamps does not increase firmware or drawing size. Finished pictures still use the same 128×64 two-frame data. This is a curated emoji-style selection, not the full Unicode emoji catalogue.
 
 All 14 tests pass, with all 96 stamps tested for placement, erase and edge clipping, unique masks/IDs, category/search filtering and existing upload integration. Browser appearance still needs user verification. No firmware flash.
 
 The stamp library also includes all 12 zodiac glyphs in a dedicated **Zodiac** category: Aries, Taurus, Gemini, Cancer, Leo, Virgo, Libra, Scorpio, Sagittarius, Capricorn, Aquarius and Pisces. Total: 108 stamps. Search by sign name, then place/scale like any other stamp. Zodiac is an art category; it does not derive or change the saved owner profile.
+
+## Service — draft 0.12
+
+Service now includes the Pi app’s fuel-gauge panel: voltage-estimated battery percentage, voltage, USB-data presence, charger indication, ADC millivolts and sensor state, with reading timestamp. Unknown/missing fields stay unknown; charging/full remains a hardware LED indication (`HW_ONLY`) rather than a software charge measurement. Optional five-second power refresh and one-second input refresh operate only while Service is visible, pause during transfers/tests/other busy operations, avoid accumulating pending reads and stop on disconnect.
+
+Added the Pi’s separate `TEST INPUT` recalibration routine, individual Jar Status / Wi-Fi / Clock / Display / Power / Capabilities / Touch / Screensaver reads, and Save to Jar. Both input and touch tests recalibrate baselines and require fingers off all pads. Tests record firmware responses and elapsed times in the support report; routine PASS does not certify physical hardware, so users still record observations. Existing logs, error filters, readable downloads and redacted support reports remain local. No automatic sending or remote repair is implied.
+
+Validation: all 14 Node tests pass, including individual reads, save, Input test/report entries, fuel-gauge field mapping and optional polling wiring. Physical board and browser appearance checks remain outstanding. No firmware flash.

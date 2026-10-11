@@ -110,3 +110,9 @@ Mark a firmware release verified only after a clean compile with the documented 
 
 - Expanded Art to 96 distinct original pixel masks, six categories, search and compact scrollable fixed-height rows.
 - All 14 tests pass, including each mask’s erase/clipping and category/search integration. Browser appearance needs user verification. No firmware changes.
+
+## Web Studio draft 0.12 — Pi Service parity
+
+- Added fuel gauge (sensor, battery estimate, voltage, USB data, hardware charger indication, ADC), timestamp and optional five-second refresh.
+- Added Input recalibration test, individual diagnostic reads and Save to Jar; recorded tests remain in support exports. Polling pauses when hidden/busy and avoids request buildup.
+- All 14 Node tests pass with extended Service/fuel/report integration. Physical board/browser appearance checks remain outstanding. Web-only change.

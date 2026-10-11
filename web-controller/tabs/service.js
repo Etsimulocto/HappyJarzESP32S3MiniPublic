@@ -9,9 +9,25 @@ function renderDiagnostics(){
   $('service-log').textContent=lines.slice(-250).join('\n');$('log').textContent=lines.slice(-80).join('\n');
   $('log-health').textContent=`${ctx.diagnostics.entries.length}/${ctx.diagnostics.maxEntries} events retained · ${ctx.diagnostics.dropped} older events dropped · storage: ${ctx.diagnostics.persistence}. Screen shows the latest 250 matching events; downloads include all retained events.`;
 }
-let inputTimer;
+let inputTimer,powerTimer,polling=false;
+function requireIdle(){if(ctx.serviceBusy||ctx.transferring||ctx.connecting||ctx.closing)throw new Error('Wait for the current jar operation to finish.');}
+async function singleRead(command,type){requireIdle();ctx.serviceBusy=true;controls();try{await query(command,type);message(type+' readout refreshed.');}finally{ctx.serviceBusy=false;controls();}}
+for(const [id,command,type] of [['status','GET STATUS','STATUS'],['wifi','GET WIFI STATUS','WIFI'],['time','GET TIME STATUS','TIME'],['display','GET DISPLAY','DISPLAY'],['power','GET POWER','POWER'],['caps','GET CAPS','CAPS'],['input','GET INPUT','INPUT'],['saver','GET SAVER STATUS','SAVER']])$('service-read-'+id).onclick=action(()=>singleRead(command,type));
+$('service-save').onclick=action(async()=>{requireIdle();ctx.serviceBusy=true;controls();try{await ack('SAVE');message('Current settings saved to the jar.');}finally{ctx.serviceBusy=false;controls();}});
+async function pollRead(command,type){if(polling||$('service').hidden||!ctx.identity||ctx.transferring||ctx.serviceBusy||ctx.closing||ctx.connecting)return;polling=true;try{await query(command,type);}catch(error){message(error.message,'error');}finally{polling=false;}}
+function updateFuel(){
+ const reading=ctx.snapshots.POWER,data=reading?.fields;
+ $('fuel-sensor').textContent='Sensor '+(data?.sensor || '—');
+ $('fuel-percent').textContent=data?.percent!==undefined && Number(data.percent)>=0?data.percent+'%':'CHECK';
+ $('fuel-voltage').textContent=data?.voltage?data.voltage+' V':'—';
+ $('fuel-usb').textContent=data?.usb_data==='1'?'IN':data?.usb_data==='0'?'OUT':'—';
+ $('fuel-charge').textContent=data?.charge==='HW_ONLY'?'HW LED':data?.charge || '—';
+ $('fuel-adc').textContent=data?.adc_mv?data.adc_mv+' mV':'—';
+ $('fuel-stamp').textContent=reading?'Last reading '+reading.at+(ctx.identity?'':' · disconnected; last known values'):'No power reading yet.';
+ if(!reading)$('fuel-percent').textContent='—';
+}
 function updateReadouts(){
-  if($('service').hidden)return;
+  if($('service').hidden)return;updateFuel();
   const root=$('service-readouts');root.replaceChildren();
   for(const type of ['IDENTITY','CAPS','POWER','STATUS','LED_FRAME','OLED','WIFI','TIME','ALARM','TIMER','DISPLAY','INPUT','TOUCH_CAL','SAVER','ACCESSORY','SLEEP','ART']){
     const card=document.createElement('section'),heading=document.createElement('h3'),body=document.createElement('pre'),stamp=document.createElement('small');
@@ -22,7 +38,7 @@ function updateReadouts(){
   }
 }
 async function serviceTest(label,command,match,timeout=10000){
-  const start=performance.now();ctx.serviceBusy=true;controls();
+  requireIdle();const start=performance.now();ctx.serviceBusy=true;controls();
   try {const response=await request(command,match,timeout);const detail=JSON.stringify(safeFields(response.data));
     testResults.push({at:new Date().toISOString(),board:ctx.identity?.serial,label,command,elapsedMs:Math.round(performance.now()-start),result:'response received',detail});
     log(`${label}: firmware response ${detail}. Physical result requires observation.`,'info','TEST');message(`${label} completed. Check the physical result and record your observations.`);
@@ -30,7 +46,7 @@ async function serviceTest(label,command,match,timeout=10000){
   finally{if(testResults.length>100)testResults.shift();$('service-tests').textContent=testResults.map(t=>`${t.at} · ${t.label}: ${t.result} (${t.elapsedMs} ms) · ${t.detail}`).join('\n');ctx.serviceBusy=false;controls();}
 }
 $('refresh-service').onclick=action(async()=>{
-  ctx.serviceBusy=true;controls();let failed=0;
+  requireIdle();ctx.serviceBusy=true;controls();let failed=0;
   try{for(const [command,type] of [['GET CAPS','CAPS'],['GET POWER','POWER'],['GET STATUS','STATUS'],['GET LED FRAME','LED_FRAME'],['GET OLED','OLED'],['GET WIFI STATUS','WIFI'],['GET TIME STATUS','TIME'],['GET ALARM','ALARM'],['GET TIMER','TIMER'],['GET DISPLAY','DISPLAY'],['GET INPUT','INPUT'],['GET SAVER STATUS','SAVER'],['ART READY','ART']]){
     if(!ctx.identity)break;try{await query(command,type);}catch(error){failed++;log(`${command}: ${error.message}`,'error','SERVICE');}
   }message(failed?`Readouts refreshed with ${failed} failed requests. See the log.`:'Readouts refreshed.',failed?'warn':'info');}
@@ -39,16 +55,18 @@ $('refresh-service').onclick=action(async()=>{
 $('service-ping').onclick=action(()=>serviceTest('Ping','PING',p=>p.type==='PONG'));
 $('service-rgb').onclick=action(async()=>{if(confirm('Run a brief red/green/blue/white lamp test?'))await serviceTest('RGB routine','TEST RGB',p=>p.type==='TEST' && p.data.rgb!==undefined);});
 $('service-touch').onclick=action(async()=>{if(confirm('Keep fingers off all six pads. Recalibrate touch inputs now?'))await serviceTest('Touch calibration routine','TEST TOUCH',p=>p.type==='TEST' && p.data.input!==undefined);});
-$('live-input').onchange=()=>{clearInterval(inputTimer);if($('live-input').checked){inputTimer=setInterval(()=>{if(ctx.identity&&!ctx.transferring&&!ctx.serviceBusy)query('GET INPUT','INPUT').catch(error=>message(error.message,'error'));},1000);}};
+$('service-input').onclick=action(async()=>{if(confirm('Input test recalibrates all six touch pads. Keep fingers off every pad and run it now?'))await serviceTest('Input calibration routine','TEST INPUT',p=>p.type==='TEST' && p.data.input!==undefined);});
+$('live-power').onchange=()=>{clearInterval(powerTimer);if($('live-power').checked){void pollRead('GET POWER','POWER');powerTimer=setInterval(()=>void pollRead('GET POWER','POWER'),5000);}};
+$('live-input').onchange=()=>{clearInterval(inputTimer);if($('live-input').checked){void pollRead('GET INPUT','INPUT');inputTimer=setInterval(()=>void pollRead('GET INPUT','INPUT'),1000);}};
 function downloadFile(name,contents,type){const url=URL.createObjectURL(new Blob([contents],{type})),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 function environment(){return ctx.environment();}
 $('download-report').onclick=action(()=>{
   ctx.diagnostics.flush();const report=buildReport({logger:ctx.diagnostics,environment:environment(),identity:ctx.latestIdentity,snapshots:ctx.snapshots,tests:testResults,notes:$('support-notes').value,observations:{screen:$('observe-screen').value,lights:$('observe-lights').value,touch:$('observe-touch').value}});
   downloadFile('happyjarz-support-'+new Date().toISOString().replaceAll(':','-')+'.json',JSON.stringify(report,null,2),'application/json');message('Support report downloaded. You can review it and send it to us.');
 });
-$('download-log').onclick=()=>{ctx.diagnostics.flush();downloadFile('happyjarz-session-log.txt',`HAPPY JARZ Web Studio 0.11.0\nExported ${new Date().toISOString()}\nOlder events dropped: ${ctx.diagnostics.dropped}\n`+JSON.stringify(environment(),null,2)+'\n\n'+ctx.diagnostics.entries.map(e=>`${e.at} ${e.level.toUpperCase()} ${e.kind} ${e.text}`).join('\n'),'text/plain');};
+$('download-log').onclick=()=>{ctx.diagnostics.flush();downloadFile('happyjarz-session-log.txt',`HAPPY JARZ Web Studio 0.12.0\nExported ${new Date().toISOString()}\nOlder events dropped: ${ctx.diagnostics.dropped}\n`+JSON.stringify(environment(),null,2)+'\n\n'+ctx.diagnostics.entries.map(e=>`${e.at} ${e.level.toUpperCase()} ${e.kind} ${e.text}`).join('\n'),'text/plain');};
 $('clear-log').onclick=()=>{if(confirm('Delete retained diagnostic logs from this browser?')){ctx.diagnostics.clear();renderDiagnostics();}};
 $('log-filter').onchange=renderDiagnostics;
 
-return { renderDiagnostics, receive:updateReadouts, onShow:updateReadouts, reset(){clearInterval(inputTimer);$('live-input').checked=false;updateReadouts();} };
+return { renderDiagnostics, receive:updateReadouts, onShow:updateReadouts, reset(){clearInterval(inputTimer);clearInterval(powerTimer);$('live-input').checked=false;$('live-power').checked=false;updateReadouts();} };
 }

@@ -46,7 +46,7 @@ $('download-report').onclick=action(()=>{
   ctx.diagnostics.flush();const report=buildReport({logger:ctx.diagnostics,environment:environment(),identity:ctx.latestIdentity,snapshots:ctx.snapshots,tests:testResults,notes:$('support-notes').value,observations:{screen:$('observe-screen').value,lights:$('observe-lights').value,touch:$('observe-touch').value}});
   downloadFile('happyjarz-support-'+new Date().toISOString().replaceAll(':','-')+'.json',JSON.stringify(report,null,2),'application/json');message('Support report downloaded. You can review it and send it to us.');
 });
-$('download-log').onclick=()=>{ctx.diagnostics.flush();downloadFile('happyjarz-session-log.txt',`HAPPY JARZ Web Studio 0.6.0\nExported ${new Date().toISOString()}\nOlder events dropped: ${ctx.diagnostics.dropped}\n`+JSON.stringify(environment(),null,2)+'\n\n'+ctx.diagnostics.entries.map(e=>`${e.at} ${e.level.toUpperCase()} ${e.kind} ${e.text}`).join('\n'),'text/plain');};
+$('download-log').onclick=()=>{ctx.diagnostics.flush();downloadFile('happyjarz-session-log.txt',`HAPPY JARZ Web Studio 0.7.0\nExported ${new Date().toISOString()}\nOlder events dropped: ${ctx.diagnostics.dropped}\n`+JSON.stringify(environment(),null,2)+'\n\n'+ctx.diagnostics.entries.map(e=>`${e.at} ${e.level.toUpperCase()} ${e.kind} ${e.text}`).join('\n'),'text/plain');};
 $('clear-log').onclick=()=>{if(confirm('Delete retained diagnostic logs from this browser?')){ctx.diagnostics.clear();renderDiagnostics();}};
 $('log-filter').onchange=renderDiagnostics;
 

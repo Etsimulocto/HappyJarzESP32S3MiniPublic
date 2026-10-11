@@ -81,3 +81,9 @@ Mark a firmware release verified only after a clean compile with the documented 
 - Published the supplied glitter-jar PNG unchanged and Suno share link `https://suno.com/s/cuHjog2hpKZ3MOVF`. No visitor media upload/edit/clear UI remains, and legacy local media overrides are ignored.
 - Content changes are committed through repository write permissions; the static site contains no admin password, write token or upload backend. Repository collaborators with write access can also publish, so the repository access list remains authoritative.
 - Twelve Node checks passed, with integration coverage updated for published song/art loading and absent editing controls. Browser visual/USB verification remains pending. No firmware flash is needed.
+
+## Web Studio draft 0.7 — Wi-Fi + Clock
+
+- Ported Pi scan/select, saved Wi-Fi connect/test/clear, connection/IP/RSSI readout, host/internet time controls and shared supported time-zone selection.
+- Separate alarm and timer board readouts; alarm validation and persistence, timer start/stop. Explicit refresh confirms asynchronous Wi-Fi/internet sync results.
+- Expanded simulated USB integration coverage; all 12 Node tests pass. No physical board or browser layout validation in this change. No firmware change or flash.

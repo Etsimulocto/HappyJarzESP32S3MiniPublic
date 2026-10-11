@@ -90,3 +90,5 @@ Web Studio draft 0.4 moves each tab's JavaScript into its own module under `web-
 Web Studio draft 0.5 adds Monday's pink/teal collage identity, a six-image local gallery and click-to-open Suno link. The actual BloomSaver Glitter engine from the old BloomCircuit repo now fills the window behind the controller, with a live editor, sliders, symbols, seeds and local presets. All files are hosted locally with the web app. Twelve simulated/logic tests passed; visual browser and physical Pi performance checks remain pending.
 
 Web Studio draft 0.6 publishes the Architect's glitter-jar image and selected Suno song. Monday's Corner is now read-only for visitors; media publishing uses GitHub repository write permissions. Public upload/edit/clear controls and browser media overrides were removed. Personal background tuning remains available.
+
+Web Studio draft 0.7 completes the Wi-Fi + Clock tab from the Pi reference: 2.4 GHz scan/select, saved network setup and clearing, USB/internet clock controls, saved alarm and auto-off timer readouts. Time zones remain limited by firmware to four US regions and UTC. This is a web-only update.

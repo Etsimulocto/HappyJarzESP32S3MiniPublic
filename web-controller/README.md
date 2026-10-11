@@ -1,4 +1,4 @@
-# HAPPY JARZ Web Studio — draft 0.6
+# HAPPY JARZ Web Studio — draft 0.7
 
 A static USB browser controller for the existing SuperMini SIMPLE protocol. No backend, account, Python installation, or paid domain required for website users. This is an initial implementation, not a hardware-verified replacement for the Mini app.
 
@@ -132,3 +132,13 @@ Sources: [ESP Web Tools](https://esphome.github.io/esp-web-tools/), [Espressif e
 All diagnostic timestamps use UTC. Reports also record browser locale, browser timezone and offset, and the jar's reported timezone/local clock when available. Firmware 0.18.4 maps only America/New_York, America/Chicago, America/Denver, America/Los_Angeles and UTC; other values silently fall back to Central. The first web draft used POSIX values incompatible with that mapping. Draft 0.2 fixes the controls to use supported IANA identifiers and removes the unsupported UK option. More country time zones need a board firmware extension and daylight-saving tests before they can be offered.
 
 The layout adapts to phone/tablet widths, including Service cards and wrapped tabs. This does not imply universal phone/tablet USB support. USB permission, browser support and secure-context checks still apply. Wi-Fi configuration currently requires a nonempty password because the firmware's trimmed command parser cannot reliably clear a password with an empty SET command. No board firmware changed in this web update.
+
+## Wi-Fi + Clock — draft 0.7
+
+The separate `tabs/wifi-clock.js` module now carries the Pi setup controls: scan the jar’s visible 2.4 GHz networks, select an SSID, save credentials and connect, retry a saved network, read connection/IP/signal status, and confirm clearing saved Wi-Fi. Scan results are rendered as text and network/password fields remain redacted in diagnostics. Password visibility is optional and the input is cleared after saving and on disconnect.
+
+Clock controls include a shared Profile/Clock time-zone selection, saved time zone, USB host time without internet, an internet-time request and explicit clock refresh. Internet requests and Wi-Fi connection ACKs indicate requests accepted, not successful synchronization or connection; refresh afterward to confirm. Firmware still supports only four US zones and UTC. Password-free networks and captive-portal login are unsupported by this setup.
+
+Alarm controls validate HH:MM, apply enable/disable and save settings. Auto-off controls start/stop a 1–10080 minute timer with separate remaining-time readout. All readouts show last board readings; they are not a locally fabricated countdown. Disconnect clears readouts and scan results. No firmware flash is needed.
+
+Validation: all 12 Node tests pass with expanded actual-module simulated USB coverage for scanning/selecting, time-zone and host/internet sync commands, invalid alarms, timer stop, credential clearing and redacted reports. Browser layout and physical Wi-Fi operation still need testing on a real jar.

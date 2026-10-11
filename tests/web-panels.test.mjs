@@ -48,6 +48,19 @@ test('all panels mount and share one USB session through controls, reports and r
  find('pattern').value='OCEAN';await find('apply-pattern').click();assert.ok(sent.includes('SET PATTERN OCEAN'));
  find('brightness').value='99';await find('apply-brightness').click();assert.ok(sent.includes('SET BRIGHTNESS 50'));
  await find('key-a').click();assert.ok(sent.includes('KEY a'));
+ // Older six-pad firmware stays compatible; newer CAPS unlocks the extras.
+ assert.equal(find('key-l').disabled,true);assert.equal(find('display-pad-start').textContent,'N/A');
+ emit('HJ|CAPS|profile=SIMPLE|controls=up,down,left,right,a,b,l,r,start');await new Promise(resolve=>setImmediate(resolve));
+ for(const key of ['l','r','start']){assert.equal(find('key-'+key).disabled,false);await find('key-'+key).click();assert.ok(sent.includes('KEY '+key));}
+ assert.equal(find('key-x').disabled,true);
+ emit('HJ|INPUT|up=100|a=101|l=111|r=112|start=113');
+ emit('HJ|TOUCH_CAL|l_base=100|l_thr=120|r_base=200|r_thr=240|start_base=300|start_thr=360');await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(find('display-pad-l').textContent,'111');assert.equal(find('display-pad-r').textContent,'112');assert.equal(find('display-pad-start').textContent,'113');
+ assert.equal(find('input-value-start').textContent,'113');assert.match(find('display-calibration').textContent,/START: baseline 300 · threshold 360/);
+ emit('HJ|CAPS|profile=SIMPLE|controls=up,down,left,right,a,b');await new Promise(resolve=>setImmediate(resolve));
+ for(const key of ['l','r','start']){assert.equal(find('key-'+key).disabled,true);assert.equal(find('display-pad-'+key).textContent,'N/A');}
+ emit('HJ|INPUT|up=100|a=101');await new Promise(resolve=>setImmediate(resolve));
+
  const event={key:'ArrowUp',preventDefault(){}};listeners.keydown(event);await new Promise(resolve=>setImmediate(resolve));assert.ok(!sent.includes('KEY up'));
  find('host-input-enabled').checked=true;listeners.keydown(event);await new Promise(resolve=>setImmediate(resolve));assert.ok(sent.includes('KEY up'));doc.activeElement=find('owner');const keysBefore=sent.length;listeners.keydown(event);await new Promise(resolve=>setImmediate(resolve));assert.equal(sent.length,keysBefore);doc.activeElement=null;
  await find('scan-wifi').click();assert.equal(find('wifi-networks').options.length,1);assert.match(find('wifi-scan-state').textContent,/1 named/);find('wifi-networks').value='0';await find('use-network').click();assert.equal(find('wifi-ssid').value,'PrivateNetwork');

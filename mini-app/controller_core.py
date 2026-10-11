@@ -479,7 +479,7 @@ class HappyJarzApp(tk.Tk):
         head = ttk.Frame(inputbox, style="Panel.TFrame")
         head.grid(row=0, column=0, columnspan=6, sticky="ew", pady=(0, 5))
         ttk.Label(head, text="GAMEPAD INPUT  •  LIVE TOUCH / USB STATE", style="Section.TLabel").pack(side="left")
-        ttk.Label(head, text="FULL controls stay visible on SIMPLE", style="PanelMuted.TLabel").pack(side="right")
+        ttk.Label(head, text="Available controls follow Jar capabilities", style="PanelMuted.TLabel").pack(side="right")
 
         controls = (
             ("↑ UP", "up"), ("↓ DOWN", "down"), ("← LEFT", "left"), ("→ RIGHT", "right"),
@@ -575,7 +575,7 @@ class HappyJarzApp(tk.Tk):
 
         ttk.Label(
             controls,
-            text="Buttons send into the Jar's normal input path. FULL-only controls stay disabled until advertised by the device.",
+            text="Buttons send into the Jar's normal input path. Controls stay disabled until advertised by the device.",
             style="PanelMuted.TLabel",
             wraplength=620,
         ).grid(row=2, column=0, columnspan=6, sticky="w", padx=3, pady=(5, 0))
@@ -955,7 +955,7 @@ class HappyJarzApp(tk.Tk):
         outer, mapping = self._card(root, 12)
         outer.pack(fill="x")
         ttk.Label(mapping, text="CONTROL MAP", style="Section.TLabel").pack(anchor="w")
-        ttk.Label(mapping, text="Physical layout: D-pad + A/B.  A = Select / Action.  B = Back / ESC.  Hold B = HOME.", style="PanelMuted.TLabel").pack(anchor="w", pady=(7, 10))
+        ttk.Label(mapping, text="D-pad + A/B; optional L/R/Start on firmware 0.18.5+. A = Action. B = Back. Hold B = HOME.", style="PanelMuted.TLabel").pack(anchor="w", pady=(7, 10))
         row = ttk.Frame(mapping, style="Panel.TFrame")
         row.pack(fill="x")
         for label, command in (("JAR MODE", "SET INPUT MODE JAR"), ("MENU MODE", "SET INPUT MODE MENU"), ("GAME MODE", "SET INPUT MODE GAME"), ("TEST INPUT", "TEST INPUT"), ("GET INPUT", "GET INPUT")):

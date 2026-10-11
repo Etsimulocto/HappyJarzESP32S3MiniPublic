@@ -6,11 +6,27 @@ This repository contains the HAPPY JARZ ESP32-S3 SuperMini firmware and its matc
 
 | Component | Version / target |
 | --- | --- |
-| Firmware | **0.18.4** |
+| Firmware source | **0.18.5** (full build/physical test pending) |
 | Pi Mini app | **1.11.0** |
 | Board | SIMPLE / ESP32-S3 SuperMini / 4 MB flash |
 
 Firmware, app, USB watcher, controller and art tools are all here. This checkout builds directly from `firmware/HappyJarzMini`; the BloomCircuit staging/patch flasher belongs to the older repository. See [firmware instructions](firmware/README.md) and [recorded verification](BUILD_STATUS.md).
+
+## L / R / Start touch expansion — firmware 0.18.5
+
+| Control | GPIO | Touch channel |
+| --- | --- | --- |
+| L shoulder | 11 | TOUCH11 |
+| R shoulder | 12 | TOUCH12 |
+| Start | 13 | TOUCH13 |
+
+The existing six pads keep their assignments. Each new pad uses one signal wire to its own copper touch surface, with no pad connection to power or ground. Keep signal wires short and away from lamp/power wiring; install the pads before calibration and leave all pads untouched during boot or recalibration.
+
+All nine pads share the proven algorithm: 40 samples with a 5 ms delay per pad, individual baseline, threshold 20% above baseline, 60 ms qualification and idle baseline tracking. Nine-pad calibration takes about 1.8 seconds plus read overhead. Physical sensitivity must be verified after assembly; thresholds are not copied from another pad's numeric reading.
+
+GET CAPS advertises up,down,left,right,a,b,l,r,start. GET INPUT / GET TOUCH, streams and TOUCH_CAL include the extra fields. KEY L, KEY R and KEY START use the same logical input path. Extra press-edge events are emitted before UI/game early returns. L/R/Start remain independent controls: existing six-button menu/game actions are unchanged; new gameplay bindings are future work. Any physical pad can wake software sleep.
+
+Pi controls already follow GET CAPS, so the extra buttons/readings become available after firmware connection. Web Display + Input now shows all nine raw readings and supported calibration values; older six-pad firmware leaves the extra controls disabled/N/A. X, Y and Select remain unsupported.
 
 ## Raspberry Pi app
 
@@ -72,7 +88,7 @@ The ART tab provides a 128×64 monochrome editor for still pictures and two-fram
 
 Follow the [compile and upload workflow](firmware/README.md#compile-and-upload-on-raspberry-pi). It runs detached, compiles before uploading, uploads at 115200 baud and restarts the watcher after success.
 
-**Keep USB connected and the accessory switch steady until the upload finishes and the app opens.** A blank OLED during flashing does not mean the update is finished. Check the exit marker, upload log and fresh `fw=0.18.4` identity.
+**Keep USB connected and the accessory switch steady until the upload finishes and the app opens.** A blank OLED during flashing does not mean the update is finished. Check the exit marker, upload log and fresh `fw=0.18.5` identity.
 
 See [BUILD_STATUS.md](BUILD_STATUS.md) for the distinction between host tests, reported board results and remaining release checks.
 

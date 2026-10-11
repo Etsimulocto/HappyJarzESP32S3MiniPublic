@@ -222,3 +222,7 @@ Service now includes the Pi app’s fuel-gauge panel: voltage-estimated battery 
 Added the Pi’s separate `TEST INPUT` recalibration routine, individual Jar Status / Wi-Fi / Clock / Display / Power / Capabilities / Touch / Screensaver reads, and Save to Jar. Both input and touch tests recalibrate baselines and require fingers off all pads. Tests record firmware responses and elapsed times in the support report; routine PASS does not certify physical hardware, so users still record observations. Existing logs, error filters, readable downloads and redacted support reports remain local. No automatic sending or remote repair is implied.
 
 Validation: all 14 Node tests pass, including individual reads, save, Input test/report entries, fuel-gauge field mapping and optional polling wiring. Physical board and browser appearance checks remain outstanding. No firmware flash.
+
+## Nine-pad firmware support
+
+Firmware 0.18.5 adds L/R/Start on GPIO11/12/13. Lights + Control virtual keys and raw tiles follow advertised capabilities; Display + Input now includes all nine readings and supported calibration fields. Older firmware leaves extras disabled/N/A. X/Y/Select remain unsupported. Existing firmware game/menu bindings are unchanged. All 14 Node tests pass, including capability upgrades/downgrades and extra commands/telemetry. A firmware flash is required to enable the new physical controls; see [firmware wiring/build instructions](../firmware/README.md). Physical pad and full ESP32 build checks remain pending.

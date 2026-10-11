@@ -1,6 +1,6 @@
 const MODES=['SAYINGS','SPIRAL','TRIPPY','PARTICLES','BLOOM','BREATHE','GLITTER','ART'];
 const SOURCES=['BUILTIN','CUSTOM','MIXED'];
-const PADS=['up','down','left','right','a','b'];
+const PADS=['up','down','left','right','a','b','l','r','start'];
 export function init(ctx) {
   const {$,ack,query,request,action,controls,message,log}=ctx;
   let loading=false,received=new Map();
@@ -46,8 +46,9 @@ export function init(ctx) {
     }
     if(type==='DISPLAY')$('display-state').textContent=`Reported brightness ${data.brightness ?? '—'}% · current firmware fixes brightness at 100%.`;
     if(type==='ACK'&&data.command==='SET INPUT MODE')$('display-input-mode').textContent='Input mode change acknowledged by jar.';
+    if(type==='CAPS')for(const pad of PADS)$('display-pad-'+pad).textContent=ctx.deviceControls.has(pad)?'—':'N/A';
     if(type==='INPUT'||type==='TOUCH'){for(const pad of PADS)$('display-pad-'+pad).textContent=ctx.deviceControls.has(pad)?data[pad] ?? '—':'N/A';$('display-input-state').textContent='Live raw values · '+new Date().toLocaleTimeString();}
-    if(type==='TOUCH_CAL')$('display-calibration').textContent=PADS.map(p=>`${p.toUpperCase()}: baseline ${data[p+'_base'] ?? '—'} · threshold ${data[p+'_thr'] ?? '—'}`).join('\n');
+    if(type==='TOUCH_CAL')$('display-calibration').textContent=PADS.filter(p=>ctx.deviceControls.has(p)).map(p=>`${p.toUpperCase()}: baseline ${data[p+'_base'] ?? '—'} · threshold ${data[p+'_thr'] ?? '—'}`).join('\n');
     if(type==='OLED'&&data.codec==='b64v1')try{
       const bytes=Uint8Array.from(atob(data.data),c=>c.charCodeAt(0));if(bytes.length!==1024)throw new Error('Invalid screen byte count');
       const canvas=$('display-oled').getContext('2d'),image=canvas.createImageData(128,64);

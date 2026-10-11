@@ -1,18 +1,21 @@
-// HAPPY JARZ ESP32-S3 SuperMini firmware v0.18.4
-// SIMPLE profile: six capacitive inputs, 128x64 OLED, four APA106 lamps,
+// HAPPY JARZ ESP32-S3 SuperMini firmware v0.18.5
+// SIMPLE profile: nine capacitive inputs, 128x64 OLED, four APA106 lamps,
 // local games/screensavers, and the HAPPY JARZ USB control protocol.
 //
 // HARDWARE MAP:
 //   GPIO7 -> 220R -> APA106 #1 DIN -> #2 DIN -> #3 DIN -> #4 DIN
 //   RMT 10 MHz; 0 = 4/14 ticks, 1 = 14/4 ticks; 100 us latch low
 //
-// SIX TOUCH INPUTS:
+// NINE TOUCH INPUTS:
 //   GPIO4  = UP
 //   GPIO5  = DOWN
 //   GPIO9  = LEFT
 //   GPIO10 = RIGHT
 //   GPIO1  = A / SELECT
 //   GPIO2  = B / BACK / ESC; hold B = HOME event
+//   GPIO11 = L shoulder
+//   GPIO12 = R shoulder
+//   GPIO13 = START (independent event; no menu/game alias)
 //
 // OLED:
 //   128x64 I2C SSD1306, address 0x3C, SDA GPIO8, SCL GPIO6.
@@ -32,7 +35,7 @@
 #include "happyjarz_led_types.h"
 
 static const char *HJ_HW_VERSION = "V1";
-static const char *HJ_FW_VERSION = "0.18.4";
+static const char *HJ_FW_VERSION = "0.18.5";
 
 static String hjChipId() {
   char id[13];
@@ -57,7 +60,10 @@ static constexpr uint8_t INPUT_UP_PIN = 4;
 static constexpr uint8_t INPUT_DOWN_PIN = 5;
 static constexpr uint8_t INPUT_LEFT_PIN = 9;
 static constexpr uint8_t INPUT_RIGHT_PIN = 10;
-static constexpr size_t INPUT_COUNT = 6;
+static constexpr uint8_t INPUT_L_PIN = 11;
+static constexpr uint8_t INPUT_R_PIN = 12;
+static constexpr uint8_t INPUT_START_PIN = 13;
+static constexpr size_t INPUT_COUNT = 9;
 
 // -----------------------------
 // LED layer — do not casually change
@@ -172,9 +178,9 @@ static void setLedRaw(uint8_t led, uint8_t r, uint8_t g, uint8_t b) {
 }
 
 // -----------------------------
-// Six capacitive inputs
+// Nine capacitive inputs
 // -----------------------------
-enum InputIndex : uint8_t { IN_UP=0, IN_DOWN, IN_LEFT, IN_RIGHT, IN_A, IN_B };
+enum InputIndex : uint8_t { IN_UP=0, IN_DOWN, IN_LEFT, IN_RIGHT, IN_A, IN_B, IN_L, IN_R, IN_START };
 struct TouchPadState {
   uint8_t pin;
   const char *name;
@@ -192,7 +198,10 @@ static TouchPadState inputs[INPUT_COUNT] = {
   {INPUT_LEFT_PIN, "left", 0,0,false,false,0,0},
   {INPUT_RIGHT_PIN, "right", 0,0,false,false,0,0},
   {INPUT_A_PIN, "a", 0,0,false,false,0,0},
-  {INPUT_B_PIN, "b", 0,0,false,false,0,0}
+  {INPUT_B_PIN, "b", 0,0,false,false,0,0},
+  {INPUT_L_PIN, "l", 0,0,false,false,0,0},
+  {INPUT_R_PIN, "r", 0,0,false,false,0,0},
+  {INPUT_START_PIN, "start", 0,0,false,false,0,0}
 };
 
 static String inputMode = "JAR";
@@ -201,7 +210,7 @@ static unsigned long lastInputStreamMs = 0;
 static bool bHomeSent = false;
 
 // Host/app virtual keys join the SAME logical input path as copper touch.
-static bool hjHostKeyPending[INPUT_COUNT] = {false,false,false,false,false,false};
+static bool hjHostKeyPending[INPUT_COUNT] = {};
 
 static int8_t hjHostKeyIndex(String name) {
   name.trim();
@@ -212,11 +221,14 @@ static int8_t hjHostKeyIndex(String name) {
   if (name == "RIGHT") return IN_RIGHT;
   if (name == "A") return IN_A;
   if (name == "B") return IN_B;
+  if (name == "L") return IN_L;
+  if (name == "R") return IN_R;
+  if (name == "START") return IN_START;
   return -1;
 }
 
 static void hjPrintCaps() {
-  Serial.println("HJ|CAPS|profile=SIMPLE|controls=up,down,left,right,a,b|oled=128x64|oled_mirror=1|leds=4|led_mirror=1");
+  Serial.println("HJ|CAPS|profile=SIMPLE|controls=up,down,left,right,a,b,l,r,start|oled=128x64|oled_mirror=1|leds=4|led_mirror=1");
 }
 
 static uint32_t readTouchPin(uint8_t pin) { return touchRead(pin); }
@@ -268,13 +280,12 @@ static bool updateInputState(uint8_t idx) {
 }
 
 static void printInputTelemetry() {
-  Serial.printf("HJ|INPUT|up=%lu|down=%lu|left=%lu|right=%lu|a=%lu|b=%lu\n",
-    (unsigned long)readTouchPin(INPUT_UP_PIN),
-    (unsigned long)readTouchPin(INPUT_DOWN_PIN),
-    (unsigned long)readTouchPin(INPUT_LEFT_PIN),
-    (unsigned long)readTouchPin(INPUT_RIGHT_PIN),
-    (unsigned long)readTouchPin(INPUT_A_PIN),
-    (unsigned long)readTouchPin(INPUT_B_PIN));
+  Serial.print("HJ|INPUT");
+  for (const auto &pad : inputs) {
+    Serial.print("|"); Serial.print(pad.name); Serial.print("=");
+    Serial.print((unsigned long)readTouchPin(pad.pin));
+  }
+  Serial.println();
 }
 
 // -----------------------------
@@ -3838,7 +3849,7 @@ static void serviceOled() {
 // -----------------------------
 // Local touch behavior
 // -----------------------------
-static bool latched[INPUT_COUNT] = {false,false,false,false,false,false};
+static bool latched[INPUT_COUNT] = {};
 static const Rgb palette[] = {
   {255,0,0},{255,80,0},{255,180,0},{0,255,0},{0,160,255},{0,0,255},{140,0,255},{255,0,160},{255,255,255}
 };
@@ -3889,6 +3900,16 @@ static void hjServiceSleep() {
   }
 }
 
+// Extra controls report independent press edges in every UI/game route.
+// They do not alias A/B or change existing games/menu behavior.
+static void hjEmitExtraInputEvents(const bool *q) {
+  for (uint8_t i=IN_L; i<INPUT_COUNT; ++i) {
+    if (q[i] && !latched[i]) {
+      Serial.print("HJ|EVENT|input="); Serial.println(inputs[i].name);
+    }
+  }
+}
+
 static void serviceInputs() {
   bool q[INPUT_COUNT];
   for (uint8_t i=0;i<INPUT_COUNT;++i) q[i]=updateInputState(i);
@@ -3919,6 +3940,8 @@ static void serviceInputs() {
     }
   }
 
+
+  hjEmitExtraInputEvents(q);
 
   if (!hjArcadeActive() && !hjScreensaverActive && uiScreen == UI_GAMES &&
       q[IN_A] && !latched[IN_A]) {
@@ -4184,8 +4207,9 @@ static void serviceInputs() {
     }
   }
 
-  // Send edge events for menu/game layers and desktop diagnostics.
-  for (uint8_t i=0;i<INPUT_COUNT;++i) {
+  // Original six controls retain their existing routing and edge events.
+  // L/R/Start were emitted before any UI branch could return.
+  for (uint8_t i=0;i<IN_L;++i) {
     if (q[i] && !latched[i]) { Serial.print("HJ|EVENT|input="); Serial.println(inputs[i].name); }
   }
   if (q[IN_B] && !bHomeSent && inputs[IN_B].qualifiedMs && millis()-inputs[IN_B].qualifiedMs>=1000) {

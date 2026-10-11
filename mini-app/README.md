@@ -57,3 +57,7 @@ The ART tab includes the 128×64 monochrome frame maker with one- or two-frame d
 After transfer, select **ART GALLERY** in the screensaver controls under **DISPLAY + INPUT** to start cycling through the stored drawings. Two-frame pieces animate on the OLED. The board can keep the gallery and run it with USB disconnected.
 
 Each one-bit frame uses 1,024 bytes. Fifty two-frame pieces are about 100 KiB of image data. They are saved in SPIFFS flash storage, not in the settings NVS partition.
+
+## Expanded physical inputs
+
+Firmware 0.18.5 advertises L on GPIO11, R on GPIO12 and Start on GPIO13 in addition to the original six touch controls. Existing Pi tiles, virtual buttons and gamepad routing follow GET CAPS and read the extra INPUT fields. Older firmware keeps those buttons disabled. Calibrate with every pad untouched. The new keys are independent events; existing on-board games/menu actions are unchanged. See [touch wiring and checks](../firmware/README.md#l--r--start-touch-expansion--firmware-0185).

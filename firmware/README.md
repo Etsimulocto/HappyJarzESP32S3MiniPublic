@@ -2,7 +2,7 @@
 
 | Item | Current value |
 | --- | --- |
-| Firmware | **0.18.4** |
+| Firmware | **0.18.5** |
 | Target | ESP32-S3 SuperMini, SIMPLE profile, 4 MB flash |
 | Sketch | `HappyJarzMini/HappyJarzMini.ino` |
 | Additional sources | `happyjarz_arcade.cpp/.h`, `happyjarz_art.cpp/.h`, `happyjarz_led_types.h` |
@@ -16,7 +16,31 @@ This repository contains the complete Mini sketch. Build it directly; BloomCircu
 
 The four APA106 lamps use GPIO7, RGB byte order, the ESP32 HAL RMT driver at 10 MHz, 4/14 ticks for zero, 14/4 ticks for one and approximately 100 µs latch low. OLED uses 128×64 U8g2 on I²C address 0x3C, SDA GPIO8 and SCL GPIO6.
 
-Touch controls: UP GPIO4, DOWN GPIO5, LEFT GPIO9, RIGHT GPIO10, A GPIO1 and B GPIO2. The 3.3 V accessory switch powers the OLED/lamps; OLED presence is the existing rail detector. On resume the firmware reinitializes the OLED and rebinds GPIO7 to RMT before restoring lamp output.
+Touch controls: UP GPIO4, DOWN GPIO5, LEFT GPIO9, RIGHT GPIO10, A GPIO1, B GPIO2, L GPIO11, R GPIO12 and Start GPIO13. The 3.3 V accessory switch powers the OLED/lamps; OLED presence is the existing rail detector. On resume the firmware reinitializes the OLED and rebinds GPIO7 to RMT before restoring lamp output.
+
+## L / R / Start touch expansion — firmware 0.18.5
+
+| Control | GPIO | Touch channel |
+| --- | --- | --- |
+| L shoulder | 11 | TOUCH11 |
+| R shoulder | 12 | TOUCH12 |
+| Start | 13 | TOUCH13 |
+
+The existing six pads keep their assignments. Each new pad uses one signal wire to its own copper touch surface, with no pad connection to power or ground. Keep signal wires short and away from lamp/power wiring; install the pads before calibration and leave all pads untouched during boot or recalibration.
+
+All nine pads share the proven algorithm: 40 samples with a 5 ms delay per pad, individual baseline, threshold 20% above baseline, 60 ms qualification and idle baseline tracking. Nine-pad calibration takes about 1.8 seconds plus read overhead. Physical sensitivity must be verified after assembly; thresholds are not copied from another pad's numeric reading.
+
+GET CAPS advertises up,down,left,right,a,b,l,r,start. GET INPUT / GET TOUCH, streams and TOUCH_CAL include the extra fields. KEY L, KEY R and KEY START use the same logical input path. Extra press-edge events are emitted before UI/game early returns. L/R/Start remain independent controls: existing six-button menu/game actions are unchanged; new gameplay bindings are future work. Any physical pad can wake software sleep.
+
+Pi controls already follow GET CAPS, so the extra buttons/readings become available after firmware connection. Web Display + Input now shows all nine raw readings and supported calibration values; older six-pad firmware leaves the extra controls disabled/N/A. X, Y and Select remain unsupported.
+
+Host verification: 14 Node tests pass, including new/old capability transitions and L/R/Start commands/readouts. Two Python tests execute the extracted firmware touch routines in C++ and the actual Pi capability/readout handlers. These do not compile the full ESP32 sketch or validate physical touch sensitivity. Run from the repository root:
+
+```bash
+python3 tests/test_touch_inputs.py
+```
+
+The firmware 0.18.5 full Arduino compile/upload and physical nine-pad test remain pending. After upload confirm fw=0.18.5, recalibrate with fingers off, check each new pad's baseline/threshold/raw values, and touch/release each pad to verify an isolated event without ghost presses. Repeat while lights and Wi-Fi are active.
 
 ## On-board PROFILE
 
@@ -113,7 +137,7 @@ tail -n 12 "$HOME/.happyjarz/firmware_update.log"
 tail -n 8 "$HOME/.happyjarz/plug_watch.log"
 ```
 
-The absent exit marker alone does not prove a process is still running; use the process list and log together. Success requires exit **0**, final application hash verification and a fresh `HJ|IDENTITY|...|fw=0.18.4` line.
+The absent exit marker alone does not prove a process is still running; use the process list and log together. Success requires exit **0**, final application hash verification and a fresh `HJ|IDENTITY|...|fw=0.18.5` line.
 
 ### Interrupted upload recovery
 

@@ -1,7 +1,7 @@
 # HAPPY JARZ Mini build status
 
 **Board:** ESP32-S3 SuperMini (SIMPLE profile, 4 MB flash)  
-**Firmware source:** 0.18.4 (all-day Birthday Mode; host tests passed, detailed hardware results pending)  
+**Firmware source:** 0.18.5 (nine touch controls; full ESP32 compile/upload and physical pad checks pending)  
 **Pi Mini app:** 1.11.0  
 **Source of truth:** `Etsimulocto/HappyJarzESP32S3MiniPublic`
 
@@ -126,3 +126,10 @@ Mark a firmware release verified only after a clean compile with the documented 
 - Chromium on Pi was reported to lag; Windows/Edge testing succeeded. Pi performance and full tab-by-tab physical checks remain pending.
 - Reopening instructions now document the local server, keeping its terminal open, localhost and explicit Connect Jar. Public hosting, remembered-port automatic reconnection, optional Windows plug-in helper and packaging QR code are planned, not shipped.
 - Documentation-only update; no firmware upload, runtime changes, enabled Pages deployment or installer release.
+
+## Firmware 0.18.5 — L / R / Start
+
+- Added GPIO11 L, GPIO12 R and GPIO13 Start; original pin assignments and touch sensitivity algorithm unchanged.
+- Nine-pad calibration, raw telemetry, calibration fields, capabilities, host KEY mapping and extra edge events before UI early returns. No new game/menu aliases.
+- Pi existing capability-driven buttons/readouts accept all nine keys; web Display + Input adds L/R/Start raw and calibration readouts while retaining six-pad compatibility.
+- All 14 Node tests and two extracted firmware/Pi host tests pass. Python syntax check passed. Full ESP32 compile/upload, browser appearance and physical nine-pad sensitivity remain pending.

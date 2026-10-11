@@ -32,3 +32,5 @@
 .birthday-card{border:2px solid var(--pink)}#profile-countdown{font:clamp(24px,4vw,36px)/1.25 Impact,system-ui,sans-serif;color:#ffe873}#profile-chip,#profile-draft,#profile-state,#profile-clock,#profile-countdown-detail{font:12px/1.6 ui-monospace,monospace;overflow-wrap:anywhere}#profile-saved{color:var(--mint);overflow-wrap:anywhere}
 
 #art-canvas{display:block;margin:20px auto}
+
+.art-toolbox{display:flex;gap:12px;flex-wrap:wrap;align-items:end}.art-toolbox label{flex:1;min-width:130px}.stamp-tray{border:1px dashed var(--pink);padding:14px;border-radius:12px}#art-stamps{display:grid;grid-template-columns:repeat(auto-fit,minmax(48px,1fr));gap:8px;margin-top:14px}#art-stamps button{padding:8px;font-size:26px;min-height:48px}#art-stamps button[aria-pressed="true"]{background:var(--mint);color:#102b28;border-color:#ffe873;box-shadow:0 0 0 2px #ffe873}#art-tool-state{font:12px ui-monospace,monospace;color:var(--mint)}

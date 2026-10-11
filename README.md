@@ -96,3 +96,5 @@ Web Studio draft 0.7 completes the Wi-Fi + Clock tab from the Pi reference: 2.4 
 Web Studio draft 0.8 completes Display + Input with the OLED mirror, eight screensavers and their controls/readouts, six-pad raw telemetry, Service-recorded calibration, and the Pi-style 50-slot marquee editor. This is a web-only update.
 
 Web Studio draft 0.9 completes Profile: jar identity, confirmed name/birthday save/load/clear, save without changing the clock, protected unsaved edits, and birthday countdowns based on the jar’s reported local date. Profiles remain on the jar; this web-only update needs no firmware flash.
+
+Web Studio draft 0.10 adds 24 monochrome emoji-style stamps, six draggable shape tools, fill/erase, adjustable brush and stamp sizes, and 40-step per-frame undo to Art. Existing two-frame drawing/export/upload formats remain compatible. No firmware flash.

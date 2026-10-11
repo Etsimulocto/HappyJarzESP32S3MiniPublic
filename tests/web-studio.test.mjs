@@ -88,3 +88,14 @@ test('birthday countdown uses jar calendar dates, year rollover and leap-day obs
   assert.equal(birthdayCountdown('06-11','2026-02-30'),null);
   assert.equal(birthdayCountdown('--','2026-01-01'),null);
 });
+
+import {STAMPS,stamp,line,shape} from '../web-controller/art-tools.mjs';
+test('pixel stamps and shapes clip safely and support erase and filled geometry',()=>{
+ const lit=(f,x,y)=>{const [byte,bit]=pixelIndex(x,y);return !!(f[byte]&bit);};
+ assert.equal(STAMPS.length,24);
+ for(const icon of STAMPS){const frame=new Uint8Array(1024);stamp(frame,icon.id,64,32,2);assert.ok(frame.some(Boolean),icon.id);stamp(frame,icon.id,64,32,2,true);assert.ok(frame.every(v=>v===0));stamp(frame,icon.id,0,0,4);assert.equal(frame.length,1024);}
+ const frame=new Uint8Array(1024);line(frame,0,0,127,63);assert.ok(lit(frame,0,0)&&lit(frame,127,63));
+ frame.fill(0);shape(frame,'rectangle',{x:2,y:2},{x:10,y:10});assert.ok(lit(frame,2,2));assert.equal(lit(frame,5,5),false);shape(frame,'rectangle',{x:10,y:10},{x:2,y:2},true);assert.ok(lit(frame,5,5));
+ for(const kind of ['ellipse','triangle','diamond','star']){frame.fill(0);shape(frame,kind,{x:20,y:10},{x:60,y:50},true);assert.ok(lit(frame,40,30),kind);assert.equal(lit(frame,0,0),false);}
+ assert.throws(()=>stamp(frame,'heart',64,32,5));
+});

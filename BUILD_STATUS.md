@@ -99,3 +99,9 @@ Mark a firmware release verified only after a clean compile with the documented 
 - Added saved-profile/identity/date readouts, optional birthday removal, save-only and sync-save, confirmed load/clear and unsaved-edit protection.
 - Added countdown from the jar’s last reported local date, leap-day observance and year rollover. Existing board birthday behavior is unchanged.
 - All 13 Node tests pass with calendar and simulated USB profile coverage. No physical board or browser layout validation; no firmware flash.
+
+## Web Studio draft 0.10 — Art stamps and shapes
+
+- Added 24 original deterministic pixel icons, stamp scales, six shape tools, fill/erase, connected freehand brush strokes and per-frame undo.
+- Added clipping, drag previews and cancellation rollback; existing XBM transfer format preserved.
+- All 14 Node tests pass with raster and actual pointer-handler coverage. Hardware/browser layout validation remains outstanding. Web-only change.

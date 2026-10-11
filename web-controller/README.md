@@ -1,4 +1,4 @@
-# HAPPY JARZ Web Studio — draft 0.9
+# HAPPY JARZ Web Studio — draft 0.10
 
 A static USB browser controller for the existing SuperMini SIMPLE protocol. No backend, account, Python installation, or paid domain required for website users. This is an initial implementation, not a hardware-verified replacement for the Mini app.
 
@@ -133,7 +133,7 @@ All diagnostic timestamps use UTC. Reports also record browser locale, browser t
 
 The layout adapts to phone/tablet widths, including Service cards and wrapped tabs. This does not imply universal phone/tablet USB support. USB permission, browser support and secure-context checks still apply. Wi-Fi configuration currently requires a nonempty password because the firmware's trimmed command parser cannot reliably clear a password with an empty SET command. No board firmware changed in this web update.
 
-## Wi-Fi + Clock — draft 0.9
+## Wi-Fi + Clock — draft 0.10
 
 The separate `tabs/wifi-clock.js` module now carries the Pi setup controls: scan the jar’s visible 2.4 GHz networks, select an SSID, save credentials and connect, retry a saved network, read connection/IP/signal status, and confirm clearing saved Wi-Fi. Scan results are rendered as text and network/password fields remain redacted in diagnostics. Password visibility is optional and the input is cleared after saving and on disconnect.
 
@@ -143,7 +143,7 @@ Alarm controls validate HH:MM, apply enable/disable and save settings. Auto-off 
 
 Validation: all 12 Node tests pass with expanded actual-module simulated USB coverage for scanning/selecting, time-zone and host/internet sync commands, invalid alarms, timer stop, credential clearing and redacted reports. Browser layout and physical Wi-Fi operation still need testing on a real jar.
 
-## Display + Input — draft 0.9
+## Display + Input — draft 0.10
 
 The separate `tabs/display-input.js` module now includes a 128×64 OLED mirror, manual screen/display refresh, the eight current saver modes (SAYINGS, SPIRAL, TRIPPY, PARTICLES, BLOOM, BREATHE, GLITTER, ART), start/exit, previous/next, reseed and speed controls. Saver telemetry selects the current mode and shows its activity, speed, idle delay and particle settings. Screen brightness remains fixed at 100% by firmware; obsolete brightness/idle sliders are not exposed. The web page background is a separate personal BloomSaver, not the jar OLED.
 
@@ -153,7 +153,7 @@ The marquee editor loads all 50 slots, preserving blank slots, and can replace/s
 
 Validation: 12 Node tests pass, including expanded simulated USB coverage for complete marquee responses, slot gaps, save/clear, invalid messages, OLED frame rendering, mode commands and Service-routed calibration. Physical OLED/touch behavior and browser layout still need checking on the jar. No firmware flash required.
 
-## Profile — draft 0.9
+## Profile — draft 0.10
 
 The separate `tabs/profile.js` module now includes jar identity/firmware, saved name/birthday, save-only and save-plus-host-clock options, confirmed profile loading/clearing, optional birthday removal and name-byte validation. Loading asks before replacing unsaved edits; unsolicited profile telemetry updates the saved readout without overwriting a dirty editor. Disconnect clears the editor so one jar’s private profile is not carried into the next connection. Profiles persist on the jar; the web app does not maintain the Pi app’s separate local profile database.
 
@@ -162,3 +162,11 @@ Birthday countdowns use the saved profile and the last `GET TIME STATUS` local d
 If profile saving succeeds but subsequent clock sync fails, the UI reports that distinction. Time-zone options remain the four US firmware regions and UTC. Profile name/birthday are redacted from logs and support exports.
 
 Validation: all 13 Node tests pass, including calendar boundaries/leap days, profile save/load/clear, dirty-edit protection, removing a birthday and saving without clock writes. Physical jar and browser layout testing remain outstanding. No firmware change or flash.
+
+## Art stamps + shapes — draft 0.10
+
+Art now includes 24 original monochrome pixel stamps: heart, star, smile, wink, sunglasses, ghost, cat, dog, paw, alien, robot, skull, flower, mushroom, butterfly, moon, sun, lightning, music note, cake, gift, rocket, jar and sparkles. Browser emoji label the buttons; the jar receives deterministic pixel art, not font-rendered emoji. Choose a stamp, set scale 1–4 and tap/drag to place it. Edge placement clips to the 128×64 drawing.
+
+Drag line, rectangle, circle/oval, triangle, diamond or star tools. Fill applies to closed shapes; Eraser removes pixels with the chosen tool. Freehand has a 1–6 pixel brush and connected stroke segments. Shape/stamp drags preview from the original frame and commit on release; cancelled gestures restore it. Undo retains the last 40 edits per frame, including clear/copy/import. These tools use the existing two-frame export/upload format and do not change firmware. Download drawings before leaving the page.
+
+Validation: all 14 Node tests pass, including stamp masks/scales/erase/clipping, shape fill, actual pointer-handler placement/undo and upload integration. Physical display and browser layout testing remain outstanding.

@@ -93,3 +93,9 @@ Mark a firmware release verified only after a clean compile with the documented 
 - Added OLED preview and display readout, current saver mode/speed/idle/particle telemetry, control modes and six raw touch readouts.
 - Added complete 50-slot marquee load/replace/clear, preserving slot gaps, validated before destructive replacement. Recalibration delegates to Service report history.
 - All 12 Node tests pass with actual-module simulated USB coverage. Hardware and browser layout verification remain outstanding. No firmware change or flash.
+
+## Web Studio draft 0.9 — Profile
+
+- Added saved-profile/identity/date readouts, optional birthday removal, save-only and sync-save, confirmed load/clear and unsaved-edit protection.
+- Added countdown from the jar’s last reported local date, leap-day observance and year rollover. Existing board birthday behavior is unchanged.
+- All 13 Node tests pass with calendar and simulated USB profile coverage. No physical board or browser layout validation; no firmware flash.

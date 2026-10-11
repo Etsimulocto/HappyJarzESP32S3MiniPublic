@@ -94,3 +94,5 @@ Web Studio draft 0.6 publishes the Architect's glitter-jar image and selected Su
 Web Studio draft 0.7 completes the Wi-Fi + Clock tab from the Pi reference: 2.4 GHz scan/select, saved network setup and clearing, USB/internet clock controls, saved alarm and auto-off timer readouts. Time zones remain limited by firmware to four US regions and UTC. This is a web-only update.
 
 Web Studio draft 0.8 completes Display + Input with the OLED mirror, eight screensavers and their controls/readouts, six-pad raw telemetry, Service-recorded calibration, and the Pi-style 50-slot marquee editor. This is a web-only update.
+
+Web Studio draft 0.9 completes Profile: jar identity, confirmed name/birthday save/load/clear, save without changing the clock, protected unsaved edits, and birthday countdowns based on the jar’s reported local date. Profiles remain on the jar; this web-only update needs no firmware flash.

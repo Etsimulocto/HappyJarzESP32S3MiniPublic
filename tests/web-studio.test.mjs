@@ -75,3 +75,16 @@ test('Monday media accepts Suno sharing links and rejects executable/foreign URL
  assert.equal(imageLink('./assets/monday.webp'),'./assets/monday.webp');assert.equal(imageLink('data:image/webp;base64,YWJj'),'data:image/webp;base64,YWJj');
  for(const link of ['https://evil.test/tracker.png','./assets/../secret','data:image/svg+xml;base64,YWJj'])assert.throws(()=>imageLink(link));
 });
+
+
+import { birthdayCountdown } from '../web-controller/profile.mjs';
+test('birthday countdown uses jar calendar dates, year rollover and leap-day observance',()=>{
+  assert.deepEqual(birthdayCountdown('06-11','2026-06-11T00:01:00'),{days:0,date:'2026-06-11'});
+  assert.deepEqual(birthdayCountdown('01-01','2026-12-31T23:59:00'),{days:1,date:'2027-01-01'});
+  assert.deepEqual(birthdayCountdown('02-29','2027-02-28T12:00:00'),{days:1,date:'2027-03-01'});
+  assert.deepEqual(birthdayCountdown('02-29','2028-02-28T12:00:00'),{days:1,date:'2028-02-29'});
+  assert.equal(birthdayCountdown('06-11','2026-06-12').date,'2027-06-11');
+  assert.equal(birthdayCountdown('04-31','2026-01-01'),null);
+  assert.equal(birthdayCountdown('06-11','2026-02-30'),null);
+  assert.equal(birthdayCountdown('--','2026-01-01'),null);
+});

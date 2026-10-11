@@ -105,7 +105,8 @@ int main(){
   const uint8_t expected[]={4,5,9,10,1,2,11,12,13};
   for(size_t i=0;i<INPUT_COUNT;i++){assert(inputs[i].pin==expected[i]);raw[expected[i]]=10000+expected[i]*100;}
   calibrateInputs();
-  assert(nowMs==1800);
+  // One second preparing all channels, then 40 samples at 5 ms per pad.
+  assert(nowMs==1000UL + INPUT_COUNT * 40UL * 5UL);
   for(uint8_t i=0;i<INPUT_COUNT;i++){
     auto &p=inputs[i]; assert(p.baseline==raw[p.pin]);assert(p.threshold==p.baseline+p.baseline/5);
     assert(!updateInputState(i));

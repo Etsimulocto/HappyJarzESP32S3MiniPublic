@@ -35,7 +35,7 @@
 #include "happyjarz_led_types.h"
 
 static const char *HJ_HW_VERSION = "V1";
-static const char *HJ_FW_VERSION = "0.18.6";
+static const char *HJ_FW_VERSION = "0.18.7";
 
 static String hjChipId() {
   char id[13];
@@ -233,7 +233,20 @@ static void hjPrintCaps() {
 
 static uint32_t readTouchPin(uint8_t pin) { return touchRead(pin); }
 
+// Initialize every touch channel before recording any baseline. touchRead()
+// initializes channels lazily; early startup readings are discarded for all
+// pads, including L/R/Start, using the same polling path.
+static void prepareTouchInputs() {
+  for (const auto &pad : inputs) readTouchPin(pad.pin);
+  const unsigned long startedMs = millis();
+  do {
+    for (const auto &pad : inputs) readTouchPin(pad.pin);
+    delay(5);
+  } while (millis() - startedMs < 1000UL);
+}
+
 static void calibrateInputs() {
+  prepareTouchInputs();
   for (auto &pad : inputs) {
     uint64_t sum = 0;
     for (int i = 0; i < 40; ++i) { sum += readTouchPin(pad.pin); delay(5); }

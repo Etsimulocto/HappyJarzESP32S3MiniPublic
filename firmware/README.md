@@ -172,3 +172,19 @@ Firmware 0.18.2 passed the Pi compile and reported its identity after upload. Fi
 Firmware 0.18.4 passed extracted C++ host tests for birthday activation, midnight restoration, light override/OFF, gift expiry, scene mixing, drawing bounds, accessory/sleep gating and February 29 behavior. Host tests do not compile the complete ESP32 sketch. The update instructions were provided and the Architect gave positive feedback; a 0.18.4 upload/identity log and detailed feature results have not been recorded in this document.
 
 See [BUILD_STATUS.md](../BUILD_STATUS.md) for release checks.
+
+### 0.18.7 — prepare all nine touch channels before calibration
+
+Startup and `TEST INPUT` / `TEST TOUCH` now initialize every mapped touch
+channel (Up, Down, Left, Right, A, B, L, R, Start), then discard one second
+of round-robin readings before recording baselines. This removes the reliance
+on the screensaver's early reads of only the original six pins. All nine pads
+retain direct `touchRead()`, 40 samples per baseline, the +20% threshold,
+60 ms qualification, and slow baseline drift. Idle counts are not rescaled.
+
+This addresses startup calibration preparation; physical L/R/Start response
+still needs a board test. A nonzero count or `TEST INPUT` PASS means the
+calibration routine ran, not that somebody touched every pad successfully.
+After flashing, leave all pads untouched until startup finishes. Check
+`HJ|TOUCH_CAL` against steady `HJ|INPUT` readings, then touch L/R/Start
+separately. L/R should adjust brightness and emit physical input events.

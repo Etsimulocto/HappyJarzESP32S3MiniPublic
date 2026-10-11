@@ -14,7 +14,7 @@ class TouchInputsTest(unittest.TestCase):
         tree = ast.parse(source)
         app = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "HappyJarzApp")
         methods = [n for n in app.body if isinstance(n, ast.FunctionDef) and n.name in {"_apply_input_capabilities", "_parse_fields", "_handle_line"}]
-        namespace = {"MUTED": "muted", "TEXT": "text"}
+        namespace = {"MUTED": "muted", "TEXT": "text", "time": __import__("time")}
         for method in methods:
             exec(compile(ast.Module(body=[method], type_ignores=[]), str(ROOT / "mini-app/controller_core.py"), "exec"), namespace)
         class Value:
@@ -40,6 +40,29 @@ class TouchInputsTest(unittest.TestCase):
         for key in ("l", "r", "start"):
             self.assertEqual(app.mini_buttons[key].state, "disabled")
             self.assertEqual(app.touch_vars[key].get(), "N/A")
+
+    def test_pi_refreshes_inputs_when_streaming_stalls(self):
+        source = (ROOT / "mini-app/app.py").read_text()
+        app_class = next(n for n in ast.parse(source).body if isinstance(n, ast.ClassDef) and n.name == "HappyJarzApp")
+        method = next(n for n in app_class.body if isinstance(n, ast.FunctionDef) and n.name == "_poll_inputs")
+        from types import SimpleNamespace
+        namespace = {"time": SimpleNamespace(monotonic=lambda: 10.0)}
+        exec(compile(ast.Module(body=[method], type_ignores=[]), "app.py", "exec"), namespace)
+        class App:
+            _poll_inputs = namespace["_poll_inputs"]
+            def __init__(self, opened, last):
+                self.sent = []
+                self.scheduled = []
+                self._last_input_received = last
+                self.link = SimpleNamespace(ser=SimpleNamespace(is_open=opened), send=self.sent.append)
+            def after(self, delay, callback):
+                self.scheduled.append(delay)
+        for opened, last, expected in [(True, 0, ["GET INPUT"]), (True, 9.8, []), (False, 0, [])]:
+            with self.subTest(opened=opened, last=last):
+                app = App(opened, last)
+                app._poll_inputs()
+                self.assertEqual(app.sent, expected)
+                self.assertEqual(app.scheduled, [1000])
 
     def test_nine_pad_calibration_qualification_telemetry_and_events(self):
         source = (ROOT / "firmware/HappyJarzMini/HappyJarzMini.ino").read_text()

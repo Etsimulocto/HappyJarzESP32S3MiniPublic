@@ -7,7 +7,7 @@ This repository contains the HAPPY JARZ ESP32-S3 SuperMini firmware and its matc
 | Component | Version / target |
 | --- | --- |
 | Firmware source | **0.18.5** (full build/physical test pending) |
-| Pi Mini app | **1.11.1** |
+| Pi Mini app | **1.11.2** |
 | Board | SIMPLE / ESP32-S3 SuperMini / 4 MB flash |
 
 Firmware, app, USB watcher, controller and art tools are all here. This checkout builds directly from `firmware/HappyJarzMini`; the BloomCircuit staging/patch flasher belongs to the older repository. See [firmware instructions](firmware/README.md) and [recorded verification](BUILD_STATUS.md).
@@ -53,6 +53,10 @@ nohup /usr/bin/python3 "$PWD/mini-app/happyjarz_plug_watch.py" >/dev/null 2>&1 <
 ```
 
 The watcher launches the app only after receiving a HAPPY JARZ identity. It uses a single-instance lock, checks this checkout's Git upstream for fast-forward app/source updates, and leaves firmware uploading to the separate update process. The board's serial is derived from its ESP32 chip ID. Logs are in `~/.happyjarz/`.
+
+### Physical-input readouts — Pi app 1.11.2
+
+The app refreshes INPUT readings once per second when firmware live telemetry stalls on an OLED page, including L/R/Start readings. It follows supported capabilities and leaves touch sensitivity unchanged. This app-only change requires restarting the Pi app, with no firmware upload. Physical extra-pad response still needs verification.
 
 ### USB startup fix — Pi app 1.11.1
 

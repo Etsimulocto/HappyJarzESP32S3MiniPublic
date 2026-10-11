@@ -260,6 +260,7 @@ class HappyJarzApp(tk.Tk):
         self.input_names = ("up", "down", "left", "right", "a", "b", "x", "y", "l", "r", "start", "select")
         self.simple_inputs = {"up", "down", "left", "right", "a", "b"}
         self.touch_vars = {k: tk.StringVar(value="—") for k in self.input_names}
+        self._last_input_received = 0.0
         self.input_tiles = {}
         self.input_name_labels = {}
         self.input_value_labels = {}
@@ -1332,6 +1333,7 @@ class HappyJarzApp(tk.Tk):
             return
 
         if line.startswith("HJ|TOUCH|") or line.startswith("HJ|INPUT|"):
+            self._last_input_received = time.monotonic()
             fields = self._parse_fields(line)
             aliases = {
                 "c1": "a", "c2": "b",

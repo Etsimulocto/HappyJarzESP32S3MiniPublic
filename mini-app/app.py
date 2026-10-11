@@ -36,6 +36,7 @@ class HappyJarzApp(previous.HappyJarzApp):
         self.power_charge = None
         self.power_adc = None
         self._power_poll_started = False
+        self._input_poll_started = False
         super().__init__()
         self.title(f"HAPPY JARZ Controller v{APP_VERSION}")
         self.profile_owner_var = tk.StringVar(master=self, value="")
@@ -313,6 +314,15 @@ class HappyJarzApp(previous.HappyJarzApp):
         ttk.Button(footer, text="Refresh Power", style="Accent.TButton",
                    command=lambda: self.link.send("GET POWER")).pack(side="right")
 
+    def _poll_inputs(self):
+        """Refresh touch values when the board's current page stops streaming."""
+        try:
+            if self.link.ser is not None and self.link.ser.is_open:
+                if time.monotonic() - self._last_input_received >= 0.75:
+                    self.link.send("GET INPUT")
+        finally:
+            self.after(1000, self._poll_inputs)
+
     def _poll_power(self):
         try:
             if self.link.ser is not None and self.link.ser.is_open:
@@ -391,6 +401,9 @@ class HappyJarzApp(previous.HappyJarzApp):
             if "power" not in self._identity_refreshes:
                 self._identity_refreshes.add("power")
                 self.after(250, lambda: self.link.send("GET POWER"))
+            if not self._input_poll_started:
+                self._input_poll_started = True
+                self.after(250, self._poll_inputs)
             if not self._power_poll_started:
                 self._power_poll_started = True
                 self.after(5000, self._poll_power)

@@ -1,6 +1,6 @@
 # HAPPY JARZ Pi Mini app
 
-Current app version: **1.11.1** (see `VERSION`). Matching firmware source: **0.18.5**.
+Current app version: **1.11.2** (see `VERSION`). Matching firmware source: **0.18.5**.
 
 From the repository root, launch with `python3 mini-app/app.py`; the command below is for running inside `mini-app/`.
 
@@ -61,6 +61,12 @@ The ART tab includes the 128×64 monochrome frame maker with one- or two-frame d
 After transfer, select **ART GALLERY** in the screensaver controls under **DISPLAY + INPUT** to start cycling through the stored drawings. Two-frame pieces animate on the OLED. The board can keep the gallery and run it with USB disconnected.
 
 Each one-bit frame uses 1,024 bytes. Fifty two-frame pieces are about 100 KiB of image data. They are saved in SPIFFS flash storage, not in the settings NVS partition.
+
+## Input readout refresh — app 1.11.2
+
+All supported physical-input tiles read the board's INPUT/TOUCH fields, including L/R/Start. Some firmware 0.18.5 OLED pages return before live input telemetry runs. The app tracks the last input packet and requests GET INPUT once per second if telemetry has stopped; it skips that request while streaming remains fresh. This restores raw readouts without a firmware reflash or changing touch thresholds. The GET INPUT and TEST INPUT controls are in DISPLAY + INPUT under CONTROL MAP; Service also offers Input test.
+
+Host tests exercise the actual refresh method and nine-field parser. Actual physical L/R/Start press/release response remains to be verified on the Architect's board.
 
 ## Expanded physical inputs
 

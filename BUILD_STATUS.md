@@ -28,7 +28,7 @@ The app and firmware source are together here. You do not need to pull app code 
 - Firmware 0.18.2 compiled successfully on the Architect's Pi: 1,117,977 bytes of sketch space (85%) and 53,528 bytes of static RAM (16%). The Architect reported reconnecting after upload; detailed profile/countdown checks remain pending.
 - Firmware 0.18.3 shows a five-second birthday countdown on every successful accessory OFF/ON restore, wakes software sleep and lets the overlay temporarily take priority over the arcade renderer. Host-side checks passed for repeated restores, fresh five-second timing, sleep wake, invalid birthday, delayed clock sync and birthday-day countdown. The Pi compiled this release, and the Architect reported reconnecting after retrying an interrupted upload; detailed physical switch checks remain pending.
 
-- Firmware 0.18.4 adds animated cake/balloon/confetti/present/wish screens mixed with the selected saver, an A-to-open birthday wish, a slow rainbow shimmer that respects OFF and user color/pattern choices, and restoration at local midnight. Extracted C++ host tests passed for birthday activation, midnight restoration, lights override, gift timer, scene mixing, drawing bounds, accessory/sleep gating and Feb 29 behavior. The Architect gave positive feedback after the update instructions. A 0.18.4 compile/upload/identity log and detailed Birthday Mode checks have not been recorded, so full hardware verification remains pending.
+- Firmware 0.18.4 adds animated cake/balloon/confetti/present/wish screens mixed with the selected saver, an A-to-open birthday wish, a slow rainbow shimmer that respects OFF and user color/pattern choices, and restoration at local midnight. Extracted C++ host tests passed for birthday activation, midnight restoration, lights override, gift timer, scene mixing, drawing bounds, accessory/sleep gating and Feb 29 behavior. The Architect gave positive feedback after the update instructions. A subsequent Windows/Edge browser log records a real `fw=0.18.4` identity and successful light/telemetry traffic. A complete 0.18.4 compile/upload log and detailed Birthday Mode checks have not been recorded, so full hardware verification remains pending.
 
 ## Field update lessons
 
@@ -116,3 +116,13 @@ Mark a firmware release verified only after a clean compile with the documented 
 - Added fuel gauge (sensor, battery estimate, voltage, USB data, hardware charger indication, ADC), timestamp and optional five-second refresh.
 - Added Input recalibration test, individual diagnostic reads and Save to Jar; recorded tests remain in support exports. Polling pauses when hidden/busy and avoids request buildup.
 - All 14 Node tests pass with extended Service/fuel/report integration. Physical board/browser appearance checks remain outstanding. Web-only change.
+
+## Initial Windows/Edge field test — 2026-10-10
+
+- Real USB connection reported firmware 0.18.4, chip-derived serial/chip identity, SIMPLE capabilities, four lamps and six controls.
+- The supplied log confirms profile/status/power/capability reads, ACKs for all four light-color commands, OLED/LED/input telemetry and explicit stream shutdown. The Architect reported that most controls worked.
+- Clock initially reported unsynced; the Architect subsequently confirmed it synchronized after a delay. This was a user-observed result, not a supplied final TIME response.
+- Duplicate identity lines during handshake remain an investigation item. A later chooser cancellation reported No jar selected.
+- Chromium on Pi was reported to lag; Windows/Edge testing succeeded. Pi performance and full tab-by-tab physical checks remain pending.
+- Reopening instructions now document the local server, keeping its terminal open, localhost and explicit Connect Jar. Public hosting, remembered-port automatic reconnection, optional Windows plug-in helper and packaging QR code are planned, not shipped.
+- Documentation-only update; no firmware upload, runtime changes, enabled Pages deployment or installer release.

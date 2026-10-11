@@ -78,7 +78,21 @@ See [BUILD_STATUS.md](BUILD_STATUS.md) for the distinction between host tests, r
 
 ## Browser controller draft
 
-[HAPPY JARZ Web Studio](web-controller/README.md) is an initial USB browser frontend: profile/time sync, lights, live OLED, jar keys and a two-frame art editor. Firmware installation and automatic plug-in launching are not enabled. Protocol tests passed; browser and physical Pi/Windows checks remain pending. See its README for local preview, optional Pages deployment and the release-update design. The existing Mini app remains available.
+[HAPPY JARZ Web Studio](web-controller/README.md) is an initial USB browser frontend: profile/time sync, lights, live OLED, jar keys and a two-frame art editor. Firmware installation and automatic plug-in launching are not enabled. Fourteen Node tests passed. Initial Windows/Edge USB testing confirmed firmware 0.18.4, light commands and live telemetry; the Architect also confirmed delayed clock sync. Full feature checks and Pi browser performance remain pending. See its README for local preview, optional Pages deployment and the release-update design. The existing Mini app remains available.
+
+### Reopen on your Windows PC
+
+From the extracted repository folder containing `web-controller`, choose **Open in Terminal** and run:
+
+```powershell
+py -m http.server 8080 --directory web-controller
+```
+
+Keep the terminal open. Open [http://localhost:8080](http://localhost:8080) in Edge, attach the jar to this PC, click **Connect Jar**, and select its USB port. If everything was closed, restart the server with the same command. Export unsaved artwork before closing.
+
+See [reopening and customer setup](web-controller/README.md#open-or-reopen-web-studio-on-windows) for connection help and the planned public website/optional Windows helper. Public website users will not need a GitHub account. Pages hosting, automatic browser reconnection, Windows plug-in launching and browser firmware installation are not yet enabled.
+
+### Draft development history
 
 Web Studio draft 0.2 adds the Pi app's main panel tabs, Service telemetry/tests, persistent bounded diagnostics and downloadable redacted support reports. BLOOPETZ and DND are reserved future panels. Firmware 0.18.4 timezone controls now use its supported IANA identifiers; broader international timezone support still needs a firmware extension. No firmware flash is required for this web-only change.
 

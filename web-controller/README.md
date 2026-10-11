@@ -1,6 +1,6 @@
 # HAPPY JARZ Web Studio — draft 0.12
 
-A static USB browser controller for the existing SuperMini SIMPLE protocol. No backend, account, Python installation, or paid domain required for website users. This is an initial implementation, not a hardware-verified replacement for the Mini app.
+A static USB browser controller for the existing SuperMini SIMPLE protocol. No backend, account, Python installation, or paid domain required for website users. This is a development implementation with initial PC hardware results, not a fully verified replacement for the Mini app.
 
 ## Implemented
 
@@ -60,7 +60,35 @@ Each tab has its own JavaScript module under `web-controller/tabs/`. `index.html
 
 Modules load independently. Load/initialization failures disable the affected tab and produce a PANEL error in the retained log; receive-hook failures are logged without ending the USB reader. UI controls remain disabled during initial connection/disconnect. Timers and failed writes reject only the request they belong to, avoiding interference with later commands.
 
-## Try locally
+## Open or reopen Web Studio on Windows
+
+Open the extracted repository folder containing `web-controller`, right-click inside it and choose **Open in Terminal**. Run:
+
+```powershell
+py -m http.server 8080 --directory web-controller
+```
+
+Leave that terminal open while using the local app. In Edge or a desktop browser supporting Web Serial, open [http://localhost:8080](http://localhost:8080), plug the jar directly into this computer, click **Connect Jar**, and select its USB serial port.
+
+If you closed everything, repeat those steps. If the server is still running, just reopen the link. If port 8080 is already in use, check whether the existing server is still serving the app before starting another one. A localhost link refers to the computer opening it, not the Pi or another computer on the network.
+
+Close other controllers using the jar. On Pi, stop the Mini app and its watcher using the commands below. The current browser draft requires explicit connection after reopening; remembered-jar automatic reconnection is planned, not implemented. Export unsaved drawings before closing the page.
+
+If the app opens but cannot connect, confirm that the jar is attached to this computer with a USB data cable and select the jar's USB port. Pi `ttyAMA0` / `ttyAMA10` are UARTs, not the jar's tested `ttyACM0` USB port. Cancelling the chooser produces **No jar selected**.
+
+## Customer setup plan — not yet shipped
+
+- Publish the controller and a simple setup page over HTTPS. Public website visitors will not need a GitHub account, Python or terminal commands. Repository write access is needed only by maintainers publishing changes.
+- Print a readable website address and a QR code on the instructions/packaging. The customer's phone camera scans the printed code; the jar needs no camera. Generate the code after the permanent address is verified. A QR code only opens a link; it does not grant USB permission or install software.
+- Explain first-time **Connect Jar** permission, compatible devices/browsers, reconnecting and common cable/port problems. A phone-friendly layout does not establish phone/tablet USB support.
+- Add remembered-port reconnection while the page is open. A website cannot launch itself from a closed browser when USB is inserted.
+- Build and test an optional one-time Windows helper installation for plug-in launching, similar in purpose to the Pi watcher. It must release the port before browser connection or firmware flashing.
+- Keep website updates separate from board firmware updates. The browser flasher remains disabled; plugging in a jar must not silently flash development firmware.
+- Test the full customer flow with someone following only the supplied instructions.
+
+GitHub Pages is the proposed hosting option; a paid domain is optional. The deployment has not been enabled or verified, so the expected URL below is not advertised as a working customer link.
+
+## Try locally on Pi / Linux
 
 From the repository root:
 
@@ -113,9 +141,17 @@ USB ROM flashing overwrites the application and does not provide automatic rollb
 
 An optional Windows/Pi helper can later launch this site on insertion. It must release its probing port before the browser takes ownership, and must not race a firmware installer. The existing Python/Tkinter UI is not executable as a GitHub Pages website; this UI is a new frontend using the existing protocol.
 
+## Initial PC hardware results — 2026-10-10
+
+The Architect tested the controller on a Windows PC in Edge with the real SuperMini. The supplied serial log identifies firmware **0.18.4** and confirms successful USB handshake, profile/status/capability reads, four light-color commands with ACKs, live OLED/LED frames, six-pad input readings, power telemetry and explicit stream shutdown/disconnection. The Architect reported that most controls worked and subsequently confirmed clock synchronization after a delay. The earlier `synced=0` snapshot is not the final clock result.
+
+Many identity replies appeared during initial connection; investigate handshake retries/buffering before calling this a diagnosed fault. A later **No jar selected** message followed a chooser cancellation and does not establish a board failure. Chromium on the Pi was reported to lag; PC testing succeeded, but Pi/background performance still needs measurement.
+
+These are initial field observations, not certification of every tab. Art transfers/persistence, marquee replacement, alarms/timers, profile persistence, birthday behaviors, repeated reconnects and Service physical observations still need recorded checks.
+
 ## Validation and remaining work
 
-Twelve Node tests passed: nine protocol/diagnostics/light-control tests plus an integration test executing the actual panel modules against a minimal DOM and simulated serial firmware. The logic tests cover birthday/name validation, two-frame packing, chunk limits, import validation, protocol/version parsing, diagnostic redaction/reload, bounded retention, blocked/full storage and support report contents, RGB validation, the 50% brightness ceiling, capability filtering, standard gamepad mapping and theme contrast. JavaScript syntax checks passed. Browser smoke tests with simulated serial hardware have been extended for Base/Live readouts, capability-gated keys, White/Off actions, opt-in keyboard input, ACK sequencing, rejected storage, disconnect cleanup and UI operation, but could not be executed in the development environment because the Chromium download failed. The module integration test passed for nine-tab mounting, shared USB connect/reconnect, capability-gated keys, typing/opt-in keyboard behavior, White/Off/pattern/brightness, Wi-Fi credential handling, alarm/timer, display/marquee, clock/profile saving, complete art transfer, Service readout/RGB/touch/ping routines, redacted report export and device-error recovery. Published Monday song/art loading and absence of visitor media editor controls also passed. Old browser media customizations are ignored; validation still rejects unsafe links. A separate VM test executed the copied BloomSaver engine with all 22 controls and verified pause/resume, editing messages, foreign-message rejection and state saving; media validation checks cover Suno links and image sources. These simulated environments do not render the page. Browser rendering and real hardware behavior remain unverified. These tests do not prove real USB reset behavior, drivers, touch timing, clock behavior, screen byte layout or flash preservation. Hardware trials on Pi and Windows are required. The Mini app remains the established controller.
+Fourteen Node tests passed across protocol/diagnostics, calendar/raster tools, panel integration and BloomSaver checks. Panel integration executes the actual modules against a minimal DOM and simulated serial firmware. The logic tests cover birthday/name validation, two-frame packing, chunk limits, import validation, protocol/version parsing, diagnostic redaction/reload, bounded retention, blocked/full storage and support report contents, RGB validation, the 50% brightness ceiling, capability filtering, standard gamepad mapping and theme contrast. JavaScript syntax checks passed. Browser smoke tests with simulated serial hardware have been extended for Base/Live readouts, capability-gated keys, White/Off actions, opt-in keyboard input, ACK sequencing, rejected storage, disconnect cleanup and UI operation, but could not be executed in the development environment because the Chromium download failed. The module integration test passed for nine-tab mounting, shared USB connect/reconnect, capability-gated keys, typing/opt-in keyboard behavior, White/Off/pattern/brightness, Wi-Fi credential handling, alarm/timer, display/marquee, clock/profile saving, complete art transfer, Service readout/RGB/touch/ping routines, redacted report export and device-error recovery. Published Monday song/art loading and absence of visitor media editor controls also passed. Old browser media customizations are ignored; validation still rejects unsafe links. A separate VM test executed the copied BloomSaver engine with all 22 controls and verified pause/resume, editing messages, foreign-message rejection and state saving; media validation checks cover Suno links and image sources. These simulated environments do not render the page. Automated browser rendering remains unverified. Initial manual PC USB results are recorded above; full tab-by-tab hardware verification remains outstanding. These tests do not prove real USB reset behavior, drivers, touch timing, clock behavior, screen byte layout or flash preservation. Further hardware trials on Pi and Windows are required. The Mini app remains the established controller.
 
 To run the logic and module integration tests from the repository root:
 

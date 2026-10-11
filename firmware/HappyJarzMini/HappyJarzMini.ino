@@ -1,4 +1,4 @@
-// HAPPY JARZ ESP32-S3 SuperMini firmware v0.18.5
+// HAPPY JARZ ESP32-S3 SuperMini firmware v0.18.6
 // SIMPLE profile: nine capacitive inputs, 128x64 OLED, four APA106 lamps,
 // local games/screensavers, and the HAPPY JARZ USB control protocol.
 //
@@ -35,7 +35,7 @@
 #include "happyjarz_led_types.h"
 
 static const char *HJ_HW_VERSION = "V1";
-static const char *HJ_FW_VERSION = "0.18.5";
+static const char *HJ_FW_VERSION = "0.18.6";
 
 static String hjChipId() {
   char id[13];
@@ -3900,6 +3900,20 @@ static void hjServiceSleep() {
   }
 }
 
+// Shoulder keys use the same qualified press edges as A/B, in every mode.
+static void hjServiceShoulderBrightness(const bool *q) {
+  bool lower = q[IN_L] && !latched[IN_L];
+  bool raise = q[IN_R] && !latched[IN_R];
+  if (lower == raise) return;  // No new press, or both pressed together.
+  int next = constrain((int)brightnessPercent, 0, 50);
+  next = constrain(next + (raise ? 5 : -5), 0, 50);
+  if (next == brightnessPercent) return;
+  hjSetBrightness((uint8_t)next);
+  persistSettings();
+  oledDirty = true;
+  Serial.println(statusLine());
+}
+
 // Extra controls report independent press edges in every UI/game route.
 // They do not alias A/B or change existing games/menu behavior.
 static void hjEmitExtraInputEvents(const bool *q) {
@@ -3913,6 +3927,13 @@ static void hjEmitExtraInputEvents(const bool *q) {
 static void serviceInputs() {
   bool q[INPUT_COUNT];
   for (uint8_t i=0;i<INPUT_COUNT;++i) q[i]=updateInputState(i);
+
+  // Send readings before page-specific handlers can return.
+  unsigned long inputCadence = hjArcadeActive() ? 100UL : 200UL;
+  if (inputStream && Serial && millis()-lastInputStreamMs>=inputCadence) {
+    lastInputStreamMs=millis();
+    printInputTelemetry();
+  }
 
   bool hjAnyPhysicalPress = false;
   for (uint8_t i=0; i<INPUT_COUNT; ++i) {
@@ -3941,6 +3962,7 @@ static void serviceInputs() {
   }
 
 
+  hjServiceShoulderBrightness(q);
   hjEmitExtraInputEvents(q);
 
   if (!hjArcadeActive() && !hjScreensaverActive && uiScreen == UI_GAMES &&
@@ -3971,10 +3993,6 @@ static void serviceInputs() {
     }
 
     for (uint8_t i=0;i<INPUT_COUNT;++i) latched[i]=q[i];
-    if (inputStream && Serial && millis()-lastInputStreamMs>=100) {
-      lastInputStreamMs=millis();
-      printInputTelemetry();
-    }
     return;
   }
 
@@ -4217,7 +4235,6 @@ static void serviceInputs() {
   }
   for (uint8_t i=0;i<INPUT_COUNT;++i) latched[i]=q[i];
 
-  if (inputStream && Serial && millis()-lastInputStreamMs>=200) { lastInputStreamMs=millis(); printInputTelemetry(); }
 }
 
 // -----------------------------

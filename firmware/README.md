@@ -2,7 +2,7 @@
 
 | Item | Current value |
 | --- | --- |
-| Firmware | **0.18.5** |
+| Firmware | **0.18.6** |
 | Target | ESP32-S3 SuperMini, SIMPLE profile, 4 MB flash |
 | Sketch | `HappyJarzMini/HappyJarzMini.ino` |
 | Additional sources | `happyjarz_arcade.cpp/.h`, `happyjarz_art.cpp/.h`, `happyjarz_led_types.h` |
@@ -17,6 +17,14 @@ This repository contains the complete Mini sketch. Build it directly; BloomCircu
 The four APA106 lamps use GPIO7, RGB byte order, the ESP32 HAL RMT driver at 10 MHz, 4/14 ticks for zero, 14/4 ticks for one and approximately 100 µs latch low. OLED uses 128×64 U8g2 on I²C address 0x3C, SDA GPIO8 and SCL GPIO6.
 
 Touch controls: UP GPIO4, DOWN GPIO5, LEFT GPIO9, RIGHT GPIO10, A GPIO1, B GPIO2, L GPIO11, R GPIO12 and Start GPIO13. The 3.3 V accessory switch powers the OLED/lamps; OLED presence is the existing rail detector. On resume the firmware reinitializes the OLED and rebinds GPIO7 to RMT before restoring lamp output.
+
+## L/R brightness controls — firmware 0.18.6
+
+L decreases and R increases lamp brightness by 5 percentage points per press, clamped to 0–50%. The handler runs before page/game-specific returns and shares physical/host qualified edges. It preserves the current pattern and lamp colors, saves actual changes, updates the OLED and emits STATUS for the app. Holding a pad does not auto-repeat; simultaneous L/R press edges cancel. As with other pads, the first physical press while asleep wakes the device.
+
+Raw INPUT telemetry is now sent before any page-specific return, retaining the existing 100 ms arcade / 200 ms normal cadence. Start is still an independent event; the three-mode selector is not yet implemented.
+
+Host tests exercise the actual brightness handler for steps, limits, held presses, simultaneous shoulders, Start isolation, saved changes and STATUS output. Full Arduino compilation and real pad tests remain to be performed on the Pi.
 
 ## L / R / Start touch expansion — firmware 0.18.5
 
@@ -137,7 +145,7 @@ tail -n 12 "$HOME/.happyjarz/firmware_update.log"
 tail -n 8 "$HOME/.happyjarz/plug_watch.log"
 ```
 
-The absent exit marker alone does not prove a process is still running; use the process list and log together. Success requires exit **0**, final application hash verification and a fresh `HJ|IDENTITY|...|fw=0.18.5` line.
+The absent exit marker alone does not prove a process is still running; use the process list and log together. Success requires exit **0**, final application hash verification and a fresh `HJ|IDENTITY|...|fw=0.18.6` line.
 
 ### Interrupted upload recovery
 

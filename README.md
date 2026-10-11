@@ -6,11 +6,17 @@ This repository contains the HAPPY JARZ ESP32-S3 SuperMini firmware and its matc
 
 | Component | Version / target |
 | --- | --- |
-| Firmware source | **0.18.5** (full build/physical test pending) |
+| Firmware source | **0.18.6** (full build/physical test pending) |
 | Pi Mini app | **1.11.2** |
 | Board | SIMPLE / ESP32-S3 SuperMini / 4 MB flash |
 
 Firmware, app, USB watcher, controller and art tools are all here. This checkout builds directly from `firmware/HappyJarzMini`; the BloomCircuit staging/patch flasher belongs to the older repository. See [firmware instructions](firmware/README.md) and [recorded verification](BUILD_STATUS.md).
+
+## Shoulder brightness — firmware 0.18.6
+
+L lowers lamp brightness and R raises it by five percentage points per new press, from 0% to the existing Pi app ceiling of 50%. Physical touch, app KEY commands and gamepad shoulder keys use the same qualified edge path. Changes are saved without changing the selected pattern, colors or screensaver. Holding a pad does not repeat; pressing both shoulders together leaves brightness unchanged. Start remains an independent input pending mode-selector/game integration.
+
+Input telemetry now runs before OLED page handlers return, so live raw readings continue on Profile, Clock and Info pages as well as normal screens/games. Host regression tests passed; the full ESP32 compile/upload and physical response still require Pi verification.
 
 ## L / R / Start touch expansion — firmware 0.18.5
 
@@ -98,7 +104,7 @@ The ART tab provides a 128×64 monochrome editor for still pictures and two-fram
 
 Follow the [compile and upload workflow](firmware/README.md#compile-and-upload-on-raspberry-pi). It runs detached, compiles before uploading, uploads at 115200 baud and restarts the watcher after success.
 
-**Keep USB connected and the accessory switch steady until the upload finishes and the app opens.** A blank OLED during flashing does not mean the update is finished. Check the exit marker, upload log and fresh `fw=0.18.5` identity.
+**Keep USB connected and the accessory switch steady until the upload finishes and the app opens.** A blank OLED during flashing does not mean the update is finished. Check the exit marker, upload log and fresh `fw=0.18.6` identity.
 
 See [BUILD_STATUS.md](BUILD_STATUS.md) for the distinction between host tests, reported board results and remaining release checks.
 

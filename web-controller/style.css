@@ -8,3 +8,19 @@
 
 #setup .grid{margin-bottom:20px}#wifi-networks{width:100%;min-height:145px;font:12px ui-monospace,monospace}#wifi-networks option{padding:10px;white-space:normal}#wifi-state,#time-state,#alarm-state,#timer-state{font:13px/1.6 ui-monospace,monospace;overflow-wrap:anywhere;color:var(--mint)}
 #display .grid{margin-bottom:20px}#display-oled{display:block;width:100%;max-width:512px;aspect-ratio:2;image-rendering:pixelated;border:2px solid var(--mint);background:#060b15}#display-pad-readouts{grid-template-columns:repeat(3,minmax(0,1fr));margin:20px 0}#saver-state,#display-state,#display-oled-state,#sayings-state{font:13px/1.6 ui-monospace,monospace;color:var(--mint);overflow-wrap:anywhere}#display-calibration{white-space:pre-wrap;font-size:12px}#sayings-list{width:100%;font:14px/1.6 ui-monospace,monospace}
+
+/* Six-pad gamepad: directional cross and offset action buttons. */
+#mini-buttons{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) .35fr repeat(2,minmax(0,1fr));grid-template-rows:repeat(3,52px) auto;gap:8px;padding:18px;background:linear-gradient(145deg,#332735,#17141f);border:2px solid var(--line);border-radius:28px;box-shadow:inset 0 3px 0 #ffffff12,0 6px 0 #09080d;align-items:stretch;max-width:440px;margin:auto}
+#mini-buttons button{min-width:0;padding:6px;box-shadow:0 4px 0 #09080d;border:2px solid #8d6581;touch-action:manipulation}
+#mini-buttons::before{content:'';grid-column:2;grid-row:2;background:#3b3046;border-radius:6px;box-shadow:inset 0 0 0 2px #8d6581}
+#key-up{grid-column:2;grid-row:1;border-radius:12px 12px 4px 4px;font-size:24px}
+#key-left{grid-column:1;grid-row:2;border-radius:12px 4px 4px 12px;font-size:24px}
+#key-right{grid-column:3;grid-row:2;border-radius:4px 12px 12px 4px;font-size:24px}
+#key-down{grid-column:2;grid-row:3;border-radius:4px 4px 12px 12px;font-size:24px}
+#mini-buttons #key-a{grid-column:6;grid-row:1;border-radius:50%;background:var(--mint);color:#112c27;border-color:#b6fff1;font-size:23px;font-weight:900}
+#mini-buttons #key-b{grid-column:5;grid-row:2;border-radius:50%;background:var(--pink);color:#321325;border-color:#ffc6e6;font-size:23px;font-weight:900}
+#key-x{grid-column:1;grid-row:4}#key-y{grid-column:2;grid-row:4}#key-l{grid-column:3;grid-row:4}#key-r{grid-column:4;grid-row:4}#key-start{grid-column:5;grid-row:4}#key-select{grid-column:6;grid-row:4}
+#mini-buttons :is(#key-x,#key-y,#key-l,#key-r,#key-start,#key-select){font-size:9px;border-radius:8px;padding:8px 2px}
+#mini-buttons button.active,#mini-buttons button:active:not(:disabled){transform:translateY(3px);box-shadow:0 1px 0 #09080d;filter:brightness(1.25)}
+#mini-buttons button:focus-visible{outline:3px solid #ffe873;outline-offset:3px}
+@media(max-width:400px){#mini-buttons{padding:12px;gap:5px;grid-template-rows:repeat(3,46px) auto;border-radius:22px}}

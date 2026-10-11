@@ -38,7 +38,7 @@ const pulseTimers=new Map();
 for(const key of INPUT_KEYS){
   const tile=document.createElement('div');tile.id='input-'+key;tile.className='input-tile unsupported';
   const title=document.createElement('strong'),value=document.createElement('output');title.textContent=key.toUpperCase();value.id='input-value-'+key;value.textContent='N/A';tile.append(title,value);$('input-tiles').append(tile);
-  const button=document.createElement('button');button.id='key-'+key;button.dataset.key=key;button.textContent=key.toUpperCase();button.onclick=action(()=>sendHostKey(key));$('mini-buttons').append(button);
+  const button=document.createElement('button');button.id='key-'+key;button.dataset.key=key;button.textContent=({up:'▲',down:'▼',left:'◀',right:'▶'})[key] || key.toUpperCase();button.setAttribute('aria-label',key.toUpperCase());button.onclick=action(()=>sendHostKey(key));$('mini-buttons').append(button);
 }
 function pulseKey(key){if(!INPUT_KEYS.includes(key))return;clearTimeout(pulseTimers.get(key));for(const id of ['input-','key-'])$(id+key).classList.add('active');pulseTimers.set(key,setTimeout(()=>{for(const id of ['input-','key-'])$(id+key).classList.remove('active');pulseTimers.delete(key);},120));}
 async function sendHostKey(key){

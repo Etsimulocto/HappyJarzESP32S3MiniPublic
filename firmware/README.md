@@ -2,7 +2,7 @@
 
 | Item | Current value |
 | --- | --- |
-| Firmware | **0.18.8** |
+| Firmware | **0.18.9** |
 | Target | ESP32-S3 SuperMini, SIMPLE profile, 4 MB flash |
 | Sketch | `HappyJarzMini/HappyJarzMini.ino` |
 | Additional sources | `happyjarz_arcade.cpp/.h`, `happyjarz_art.cpp/.h`, `happyjarz_led_types.h` |
@@ -205,3 +205,19 @@ Firmware 0.18.8 therefore:
 - keeps the OLED and four APA106 lamps on the existing regulated 3V3 production wiring
 
 The POWER display now shows USB/charging or battery power plus the measured VBUS rail and reports battery percentage as N/A. A future direct B+ ADC divider can restore a calibrated fuel gauge without changing the working charging hardware.
+
+
+## 0.18.9 — onboard RGB coarse battery indicator
+
+The SuperMini onboard addressable RGB LED on GPIO48 now gives a low-power coarse battery indication while running from the LiPo:
+
+- green: high battery band
+- yellow: middle battery band
+- orange: low battery band
+- red: critical battery band, approximately the bottom ~10% zone
+
+Above critical, the onboard RGB gives one short pulse every eight seconds to minimize battery draw. In the critical band it strobes red rapidly as an obvious charge-now warning. The four external APA106 jar lamps are not used for this alert.
+
+While USB power is present, the onboard RGB stays off because the board's separate blue charger LED already indicates charging state and GPIO3/VBUS cannot provide a valid battery-level estimate during USB charging.
+
+These are coarse VBUS-derived bands, not a calibrated fuel-gauge percentage. OLED battery percentage remains N/A until a direct B+ sensor is installed and calibrated.

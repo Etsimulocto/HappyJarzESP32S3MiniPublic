@@ -2,11 +2,32 @@
 
 This repository contains the HAPPY JARZ ESP32-S3 SuperMini firmware and its matching Raspberry Pi controller app.
 
+> ## PRODUCTION SOURCE — October 23, 2026
+>
+> This branch is the current source used for the physical HAPPY JARZ production build.
+>
+> ```text
+> branch: feature/mini-art-gallery-animation
+> Pi Mini app: 1.11.2
+> firmware: 0.18.7
+> board: ESP32-S3 SuperMini / SIMPLE / 4 MB flash
+> ```
+>
+> On the Raspberry Pi production machine this branch may appear in the historical worktree path:
+>
+> ```text
+> ~/HappyJarzESP32S3MiniPublic-art-test
+> ```
+>
+> Despite the `-art-test` name, this is the newer production-development stack. The default `main` branch is still an older 1.9.3 / 0.17.13 snapshot and must not be used for current production flashing until this branch is promoted.
+>
+> Physical validation on October 23, 2026 confirmed firmware **0.18.7** running with Pi Mini app **1.11.2**, including the expanded gamepad controls.
+
 ## Current release
 
 | Component | Version / target |
 | --- | --- |
-| Firmware source | **0.18.6** (full build/physical test pending) |
+| Firmware source | **0.18.7** |
 | Pi Mini app | **1.11.2** |
 | Board | SIMPLE / ESP32-S3 SuperMini / 4 MB flash |
 
@@ -104,7 +125,7 @@ The ART tab provides a 128×64 monochrome editor for still pictures and two-fram
 
 Follow the [compile and upload workflow](firmware/README.md#compile-and-upload-on-raspberry-pi). It runs detached, compiles before uploading, uploads at 115200 baud and restarts the watcher after success.
 
-**Keep USB connected and the accessory switch steady until the upload finishes and the app opens.** A blank OLED during flashing does not mean the update is finished. Check the exit marker, upload log and fresh `fw=0.18.6` identity.
+**Keep USB connected and the accessory switch steady until the upload finishes and the app opens.** A blank OLED during flashing does not mean the update is finished. Check the exit marker, upload log and fresh `fw=0.18.7` identity.
 
 See [BUILD_STATUS.md](BUILD_STATUS.md) for the distinction between host tests, reported board results and remaining release checks.
 

@@ -9,7 +9,7 @@ This repository contains the HAPPY JARZ ESP32-S3 SuperMini firmware and its matc
 > ```text
 > branch: feature/mini-art-gallery-animation
 > Pi Mini app: 1.11.2
-> firmware: 0.18.7
+> firmware: 0.18.8
 > board: ESP32-S3 SuperMini / SIMPLE / 4 MB flash
 > ```
 >
@@ -21,13 +21,13 @@ This repository contains the HAPPY JARZ ESP32-S3 SuperMini firmware and its matc
 >
 > Despite the `-art-test` name, this is the newer production-development stack. The default `main` branch is still an older 1.9.3 / 0.17.13 snapshot and must not be used for current production flashing until this branch is promoted.
 >
-> Physical validation on October 23, 2026 confirmed firmware **0.18.7** running with Pi Mini app **1.11.2**, including the expanded gamepad controls.
+> Physical validation on October 23, 2026 confirmed firmware **0.18.7** running with Pi Mini app **1.11.2**, including the expanded gamepad controls. Firmware **0.18.8** is the production battery/power-monitor correction built on that validated stack: GPIO3 is VBUS sense, false battery percentages/warnings are disabled, and charging remains hardware-controlled by the SuperMini.
 
 ## Current release
 
 | Component | Version / target |
 | --- | --- |
-| Firmware source | **0.18.7** |
+| Firmware source | **0.18.8** |
 | Pi Mini app | **1.11.2** |
 | Board | SIMPLE / ESP32-S3 SuperMini / 4 MB flash |
 

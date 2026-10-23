@@ -1,4 +1,4 @@
-// HAPPY JARZ ESP32-S3 SuperMini firmware v0.18.6
+// HAPPY JARZ ESP32-S3 SuperMini firmware v0.18.8
 // SIMPLE profile: nine capacitive inputs, 128x64 OLED, four APA106 lamps,
 // local games/screensavers, and the HAPPY JARZ USB control protocol.
 //
@@ -35,7 +35,7 @@
 #include "happyjarz_led_types.h"
 
 static const char *HJ_HW_VERSION = "V1";
-static const char *HJ_FW_VERSION = "0.18.7";
+static const char *HJ_FW_VERSION = "0.18.8";
 
 static String hjChipId() {
   char id[13];
@@ -3489,13 +3489,27 @@ static void oledRenderSettings() {
 }
 
 
-// FUEL_GAUGE_PATCH_V1
+// POWER_MONITOR_V2
 // -----------------------------
-// Fuel Gauge / battery diagnostics
+// SuperMini power / charging diagnostics
 // -----------------------------
-static constexpr uint8_t BATTERY_ADC_PIN = 3;
-static constexpr float BATTERY_DIVIDER_RATIO = 2.0f;
-static constexpr float BATTERY_CAL_FACTOR = 0.802f;
+// Production hardware (2026-10-23):
+//   * 1-cell protected LiPo connects to the board B+ / B- pads through JST.
+//   * OLED and APA106 lamps run from the board's regulated 3V3 rail.
+//   * GPIO3 is the SuperMini's onboard VBUS-sense divider. It is NOT a direct
+//     B+ battery measurement, so it must never be converted into a LiPo %.
+//
+// On battery-only operation the board can place a battery-derived voltage on
+// the VBUS/5V rail. With USB attached that rail rises to normal USB voltage.
+// We use the large gap only to identify the power source. Charging itself is
+// hardware-controlled by the SuperMini; firmware does not control charge rate.
+//
+// A real fuel gauge/low-battery warning remains intentionally disabled until
+// a direct B+ ADC divider is physically installed and calibrated against a DMM.
+static constexpr uint8_t BATTERY_ADC_PIN = 3; // historical name; electrically VBUS sense
+static constexpr float VBUS_DIVIDER_RATIO = 2.0f;
+static constexpr float VBUS_CAL_FACTOR = 1.0f;
+static constexpr float USB_POWER_THRESHOLD_V = 4.35f;
 
 static void fuelGaugeInit() {
   pinMode(BATTERY_ADC_PIN, INPUT);
@@ -3512,62 +3526,42 @@ static uint16_t batteryAdcMillivolts() {
   return (uint16_t)(total / samples);
 }
 
-static float batteryFilteredVoltage = 0.0f;
-static bool batteryFilterReady = false;
-static unsigned long batteryFilterLastMs = 0;
-static constexpr unsigned long BATTERY_FILTER_INTERVAL_MS = 1000UL;
+static float powerRailFilteredVoltage = 0.0f;
+static bool powerRailFilterReady = false;
+static unsigned long powerRailFilterLastMs = 0;
+static constexpr unsigned long POWER_RAIL_FILTER_INTERVAL_MS = 1000UL;
 
-static float batteryVoltage() {
+static float powerRailVoltage() {
   unsigned long now = millis();
-  if (batteryFilterReady && now - batteryFilterLastMs < BATTERY_FILTER_INTERVAL_MS) {
-    return batteryFilteredVoltage;
+  if (powerRailFilterReady && now - powerRailFilterLastMs < POWER_RAIL_FILTER_INTERVAL_MS) {
+    return powerRailFilteredVoltage;
   }
 
-  float rawVolts = ((float)batteryAdcMillivolts() / 1000.0f) * BATTERY_DIVIDER_RATIO * BATTERY_CAL_FACTOR;
-  batteryFilterLastMs = now;
+  float rawVolts = ((float)batteryAdcMillivolts() / 1000.0f) *
+                   VBUS_DIVIDER_RATIO * VBUS_CAL_FACTOR;
+  powerRailFilterLastMs = now;
 
-  if (!batteryFilterReady) {
-    batteryFilteredVoltage = rawVolts;
-    batteryFilterReady = true;
+  if (!powerRailFilterReady) {
+    powerRailFilteredVoltage = rawVolts;
+    powerRailFilterReady = true;
   } else {
-    // 1/4 new + 3/4 history. Smooth enough to stop percentage chatter while
-    // still following real charging/discharge changes within a few seconds.
-    batteryFilteredVoltage = batteryFilteredVoltage * 0.75f + rawVolts * 0.25f;
+    powerRailFilteredVoltage = powerRailFilteredVoltage * 0.75f + rawVolts * 0.25f;
   }
-  return batteryFilteredVoltage;
+  return powerRailFilteredVoltage;
 }
 
-static bool batteryReadingPlausible(float v) {
-  return v >= 2.8f && v <= 4.45f;
+static bool powerRailReadingPlausible(float v) {
+  // Covers battery-derived VBUS and normal 5V USB with generous diagnostic margin.
+  return v >= 2.5f && v <= 5.5f;
 }
 
-static uint8_t batteryPercentFromVoltage(float v) {
-  struct Pt { float v; uint8_t pct; };
-  static const Pt curve[] = {
-    {4.20f,100}, {4.10f,90}, {4.00f,80}, {3.92f,70},
-    {3.85f,60}, {3.79f,50}, {3.75f,40}, {3.70f,30},
-    {3.65f,20}, {3.55f,10}, {3.40f,0}
-  };
-  if (v >= curve[0].v) return 100;
-  const size_t n = sizeof(curve)/sizeof(curve[0]);
-  if (v <= curve[n-1].v) return 0;
-  for (size_t i=0; i<n-1; ++i) {
-    if (v <= curve[i].v && v >= curve[i+1].v) {
-      float span = curve[i].v - curve[i+1].v;
-      float f = span > 0.0f ? (v - curve[i+1].v) / span : 0.0f;
-      float pct = curve[i+1].pct + f * (float)(curve[i].pct - curve[i+1].pct);
-      if (pct < 0.0f) pct = 0.0f;
-      if (pct > 100.0f) pct = 100.0f;
-      return (uint8_t)(pct + 0.5f);
-    }
-  }
-  return 0;
+static bool usbPowerPresent() {
+  float v = powerRailVoltage();
+  return powerRailReadingPlausible(v) && v >= USB_POWER_THRESHOLD_V;
 }
 
 
-// HAPPYJARZ_LOW_BATTERY_WARNING_V1
-static constexpr uint8_t HJ_LOW_BATTERY_ENTER_PCT = 10;
-static constexpr uint8_t HJ_LOW_BATTERY_CLEAR_PCT = 15;
+// LOW-BATTERY WARNING IS DELIBERATELY DISABLED WITHOUT DIRECT B+ SENSING.
 static int16_t hjLowBatteryPercent = -1;
 static unsigned long hjLowBatteryLastCheckMs = 0;
 static constexpr unsigned long HJ_LOW_BATTERY_CHECK_MS = 5000UL;
@@ -3577,52 +3571,28 @@ static void hjServiceLowBattery() {
   if (hjLowBatteryLastCheckMs && now - hjLowBatteryLastCheckMs < HJ_LOW_BATTERY_CHECK_MS) return;
   hjLowBatteryLastCheckMs = now;
 
-  float volts = batteryVoltage();
-  if (!batteryReadingPlausible(volts)) {
-    // Sensor is still unverified/calibrating. Never raise a false alarm.
-    hjLowBatteryPercent = -1;
-    hjLowBatteryWarning = false;
-    return;
-  }
-
-  uint8_t pct = batteryPercentFromVoltage(volts);
-  hjLowBatteryPercent = (int16_t)pct;
-
-  if (!hjLowBatteryWarning && pct <= HJ_LOW_BATTERY_ENTER_PCT) {
-    hjLowBatteryWarning = true;
-    oledDirty = true;
-    if (Serial) {
-      Serial.print("HJ|BATTERY_WARNING|state=LOW|percent=");
-      Serial.println(pct);
-    }
-  } else if (hjLowBatteryWarning && pct >= HJ_LOW_BATTERY_CLEAR_PCT) {
+  // GPIO3 measures the SuperMini VBUS rail, not the LiPo cell directly.
+  // Do not infer state-of-charge or throw false CHARGE ME warnings from it.
+  hjLowBatteryPercent = -1;
+  if (hjLowBatteryWarning) {
     hjLowBatteryWarning = false;
     oledDirty = true;
-    if (Serial) {
-      Serial.print("HJ|BATTERY_WARNING|state=CLEAR|percent=");
-      Serial.println(pct);
-    }
+    if (Serial) Serial.println("HJ|BATTERY_WARNING|state=DISABLED|reason=NO_DIRECT_BPLUS_SENSOR");
   }
 }
 
 static bool hjLowBatteryFlashOn() {
-  // Calm, obvious 1 Hz beacon: half second red / half second normal.
-  return ((millis() / 500UL) & 1UL) == 0UL;
+  return false;
 }
 
 static void hjRenderLowBatteryWarning() {
+  // Kept as a safe fallback for older callers; v0.18.8 never raises this state.
   if (!oled) return;
   oled->clearBuffer();
   oled->setFont(u8g2_font_6x12_tr);
-  oledCentered(13, "LOW BATTERY");
-  oled->setFont(u8g2_font_9x15B_tr);
-  oledCentered(39, "CHARGE ME!!!");
-  oled->setFont(u8g2_font_6x12_tr);
-  if (hjLowBatteryPercent >= 0) {
-    oledCentered(61, String(hjLowBatteryPercent) + "%   USB ->");
-  } else {
-    oledCentered(61, "USB ->");
-  }
+  oledCentered(18, "BATTERY GAUGE");
+  oledCentered(34, "NOT CALIBRATED");
+  oledCentered(50, "USB-C TO CHARGE");
 }
 
 static bool usbDataLinked() {
@@ -3631,37 +3601,29 @@ static bool usbDataLinked() {
 }
 
 static String oledHomePowerText() {
-  float volts = batteryVoltage();
-  bool usbPower = usbDataLinked();
+  float rail = powerRailVoltage();
+  bool railOk = powerRailReadingPlausible(rail);
+  bool usbPower = usbPowerPresent();
 
   String text = "A MENU  ";
+  uint8_t page = (uint8_t)((millis() / 2500UL) % 3UL);
+
   if (usbPower) {
-    uint8_t page = (uint8_t)((millis() / 2500UL) % 3UL);
-    if (page == 0) {
-      text += "BAT ";
-      if (batteryReadingPlausible(volts)) {
-        text += String(batteryPercentFromVoltage(volts));
-        text += "%";
-      } else {
-        text += "--%";
-      }
-    } else if (page == 1) text += "PWR USB";
-    else text += "CHG ?";
+    if (page == 0) text += "PWR USB";
+    else if (page == 1) text += "CHARGING";
+    else {
+      text += "VBUS ";
+      if (railOk) text += String(rail, 2) + "V";
+      else text += "--";
+    }
   } else {
-    uint8_t page = (uint8_t)((millis() / 2500UL) % 3UL);
-    if (page == 0) {
-      text += "BAT ";
-      if (batteryReadingPlausible(volts)) {
-        text += String(batteryPercentFromVoltage(volts));
-        text += "%";
-      } else {
-        text += "--%";
-      }
-    } else if (page == 1) {
-      text += "V ";
-      text += String(volts, 2);
+    if (page == 0) text += "PWR BAT";
+    else if (page == 1) {
+      text += "RAIL ";
+      if (railOk) text += String(rail, 2) + "V";
+      else text += "--";
     } else {
-      text += "PWR BAT";
+      text += "BAT % --";
     }
   }
   return text;
@@ -3669,29 +3631,33 @@ static String oledHomePowerText() {
 
 static void printPowerStatus() {
   uint16_t adcMv = batteryAdcMillivolts();
-  float volts = batteryVoltage();
-  if (!batteryReadingPlausible(volts)) {
-    Serial.printf("HJ|POWER|sensor=UNVERIFIED|adc_mv=%u|voltage=%.3f|percent=-1|usb_data=%d|charge=HW_ONLY\n",
-                  adcMv, volts, usbDataLinked()?1:0);
-    return;
-  }
-  Serial.printf("HJ|POWER|sensor=OK|adc_mv=%u|voltage=%.3f|percent=%u|usb_data=%d|charge=HW_ONLY\n",
-                adcMv, volts, batteryPercentFromVoltage(volts), usbDataLinked()?1:0);
+  float rail = powerRailVoltage();
+  bool railOk = powerRailReadingPlausible(rail);
+  bool usbPower = usbPowerPresent();
+
+  Serial.printf(
+      "HJ|POWER|sensor=VBUS|adc_mv=%u|voltage=%.3f|percent=-1|usb_power=%d|usb_data=%d|charge=HW_ONLY|fuel_gauge=DISABLED|valid=%d\n",
+      adcMv, rail, usbPower ? 1 : 0, usbDataLinked() ? 1 : 0, railOk ? 1 : 0);
 }
 
 static void oledRenderPower() {
-  float volts = batteryVoltage();
-  oledCentered(13, "FUEL GAUGE");
-  if (!batteryReadingPlausible(volts)) {
-    oledCentered(29, "BAT SENSOR CHECK");
-    oledCentered(45, "GPIO3 ADC");
-  } else {
+  float rail = powerRailVoltage();
+  bool railOk = powerRailReadingPlausible(rail);
+  bool usbPower = usbPowerPresent();
+
+  oledCentered(13, "POWER MONITOR");
+  if (railOk) {
     char buf[24];
-    snprintf(buf, sizeof(buf), "BAT %.2fV  %u%%", volts, batteryPercentFromVoltage(volts));
+    snprintf(buf, sizeof(buf), "VBUS %.2fV", rail);
     oledCentered(29, String(buf));
-    oledCentered(45, usbDataLinked() ? "USB DATA IN" : "USB DATA OUT");
+  } else {
+    oledCentered(29, "VBUS SENSOR CHECK");
   }
-  oledCentered(61, "CHARGE: HW ONLY");
+
+  if (usbPower) oledCentered(45, "USB / CHARGING");
+  else oledCentered(45, "BATTERY POWER");
+
+  oledCentered(61, "BAT %: N/A");
 }
 
 static constexpr uint8_t INFO_PAGE_COUNT = 13;

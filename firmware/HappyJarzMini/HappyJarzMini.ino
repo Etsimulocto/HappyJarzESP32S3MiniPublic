@@ -1,4 +1,4 @@
-// HAPPY JARZ ESP32-S3 SuperMini firmware v0.18.9
+// HAPPY JARZ ESP32-S3 SuperMini firmware v0.18.10
 // SIMPLE profile: nine capacitive inputs, 128x64 OLED, four APA106 lamps,
 // local games/screensavers, and the HAPPY JARZ USB control protocol.
 //
@@ -35,7 +35,7 @@
 #include "happyjarz_led_types.h"
 
 static const char *HJ_HW_VERSION = "V1";
-static const char *HJ_FW_VERSION = "0.18.9";
+static const char *HJ_FW_VERSION = "0.18.10";
 
 static String hjChipId() {
   char id[13];
@@ -54,7 +54,6 @@ static String hjSerialId() {
 // Hardware map
 // -----------------------------
 static constexpr uint8_t LED_DATA_PIN = 7;
-static constexpr uint8_t ONBOARD_RGB_PIN = 48; // SuperMini addressable status LED
 static constexpr uint8_t INPUT_A_PIN = 1;
 static constexpr uint8_t INPUT_B_PIN = 2;
 static constexpr uint8_t INPUT_UP_PIN = 4;
@@ -97,35 +96,6 @@ static bool initApa106Rmt() {
   if (!rmtInit(LED_DATA_PIN, RMT_TX_MODE, RMT_MEM_NUM_BLOCKS_1, 10000000)) return false;
   rmtSetEOT(LED_DATA_PIN, 0);
   return true;
-}
-
-
-static bool initOnboardRgbRmt() {
-  pinMode(ONBOARD_RGB_PIN, OUTPUT);
-  digitalWrite(ONBOARD_RGB_PIN, LOW);
-  if (!rmtInit(ONBOARD_RGB_PIN, RMT_TX_MODE, RMT_MEM_NUM_BLOCKS_1, 10000000)) return false;
-  rmtSetEOT(ONBOARD_RGB_PIN, 0);
-  return true;
-}
-
-static void writeOnboardRgb(uint8_t r, uint8_t g, uint8_t b) {
-  // SuperMini onboard addressable LED is WS2812-style GRB at ~800 kHz.
-  uint8_t bytes[3] = {g, r, b};
-  rmt_data_t symbols[24];
-  size_t n = 0;
-  for (uint8_t cidx = 0; cidx < 3; ++cidx) {
-    for (int bit = 7; bit >= 0; --bit) {
-      bool one = bytes[cidx] & (1U << bit);
-      symbols[n].level0 = 1;
-      symbols[n].duration0 = one ? 14 : 4;
-      symbols[n].level1 = 0;
-      symbols[n].duration1 = one ? 4 : 14;
-      ++n;
-    }
-  }
-  rmtWrite(ONBOARD_RGB_PIN, symbols, n, RMT_WAIT_FOR_EVER);
-  digitalWrite(ONBOARD_RGB_PIN, LOW);
-  delayMicroseconds(100);
 }
 
 
@@ -3691,79 +3661,6 @@ static void oledRenderPower() {
 }
 
 
-enum HJBatteryBand : uint8_t {
-  HJ_BAT_UNKNOWN = 0,
-  HJ_BAT_CRITICAL,
-  HJ_BAT_LOW,
-  HJ_BAT_MID,
-  HJ_BAT_HIGH
-};
-
-// Coarse battery-only bands derived from the SuperMini battery-fed VBUS rail.
-// These are intentionally NOT displayed as percentages. Final thresholds can
-// be tuned later against direct B+ DMM readings from the production battery.
-static HJBatteryBand hjBatteryBandFromRail(float rail) {
-  if (!powerRailReadingPlausible(rail) || usbPowerPresent()) return HJ_BAT_UNKNOWN;
-  if (rail < 3.35f) return HJ_BAT_CRITICAL; // approximate bottom ~10% zone
-  if (rail < 3.55f) return HJ_BAT_LOW;
-  if (rail < 3.75f) return HJ_BAT_MID;
-  return HJ_BAT_HIGH;
-}
-
-static void hjBatteryBandColor(HJBatteryBand band, uint8_t &r, uint8_t &g, uint8_t &b) {
-  r = g = b = 0;
-  switch (band) {
-    case HJ_BAT_CRITICAL: r = 255; break;         // red
-    case HJ_BAT_LOW:      r = 80; g = 12; break; // orange
-    case HJ_BAT_MID:      r = 60; g = 42; break; // yellow
-    case HJ_BAT_HIGH:     g = 64; break;          // green
-    default: break;
-  }
-}
-
-static void hjServiceOnboardBatteryLed() {
-  static bool wasOn = false;
-  static bool lastUsb = true;
-  unsigned long now = millis();
-
-  bool usb = usbPowerPresent();
-  if (usb) {
-    // Blue hardware charger LED already communicates USB/charge state.
-    if (wasOn || !lastUsb) {
-      writeOnboardRgb(0, 0, 0);
-      wasOn = false;
-    }
-    lastUsb = true;
-    return;
-  }
-  lastUsb = false;
-
-  float rail = powerRailVoltage();
-  HJBatteryBand band = hjBatteryBandFromRail(rail);
-  uint8_t r, g, b;
-  hjBatteryBandColor(band, r, g, b);
-
-  if (band == HJ_BAT_CRITICAL) {
-    // Very obvious low-battery warning. Fast red strobe, but only the tiny
-    // onboard LED; the four jar lamps are left alone.
-    bool on = ((now / 110UL) & 1UL) == 0UL;
-    if (on != wasOn) {
-      writeOnboardRgb(on ? r : 0, 0, 0);
-      wasOn = on;
-    }
-    return;
-  }
-
-  // Normal battery indication: one short color pulse every 8 seconds.
-  // This makes the state visible without continuously burning battery.
-  unsigned long phase = now % 8000UL;
-  bool on = (band != HJ_BAT_UNKNOWN) && phase < 140UL;
-  if (on != wasOn) {
-    writeOnboardRgb(on ? r : 0, on ? g : 0, on ? b : 0);
-    wasOn = on;
-  }
-}
-
 static constexpr uint8_t INFO_PAGE_COUNT = 13;
 
 static void oledRenderInfo() {
@@ -4612,8 +4509,6 @@ void setup(){
   hjArtInit();
   oledInit();
   hjScreensaverTouch();
-  if(!initOnboardRgbRmt()) Serial.println("HJ|ERR|message=Onboard RGB RMT init failed");
-  else writeOnboardRgb(0, 0, 0);
   if(!initApa106Rmt()) Serial.println("HJ|ERR|message=RMT init failed");
   else {
     // Quiet boot/reconnect: never overwrite user LED colors just because USB
@@ -4635,7 +4530,6 @@ void setup(){
 void loop(){
   serviceAccessoryPause();
   hjServiceLowBattery();
-  hjServiceOnboardBatteryLed();
   serialPoll();
   serviceBirthdayMode();
   serviceInputs();

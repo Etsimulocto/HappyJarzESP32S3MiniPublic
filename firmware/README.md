@@ -2,7 +2,7 @@
 
 | Item | Current value |
 | --- | --- |
-| Firmware | **0.18.9** |
+| Firmware | **0.18.10** |
 | Target | ESP32-S3 SuperMini, SIMPLE profile, 4 MB flash |
 | Sketch | `HappyJarzMini/HappyJarzMini.ino` |
 | Additional sources | `happyjarz_arcade.cpp/.h`, `happyjarz_art.cpp/.h`, `happyjarz_led_types.h` |
@@ -221,3 +221,15 @@ Above critical, the onboard RGB gives one short pulse every eight seconds to min
 While USB power is present, the onboard RGB stays off because the board's separate blue charger LED already indicates charging state and GPIO3/VBUS cannot provide a valid battery-level estimate during USB charging.
 
 These are coarse VBUS-derived bands, not a calibrated fuel-gauge percentage. OLED battery percentage remains N/A until a direct B+ sensor is installed and calibrated.
+
+
+## 0.18.10 — production SuperMini LED correction
+
+Physical production testing confirmed this SuperMini revision has only the red board LED and blue charger-status LED; no separate addressable third RGB LED was confirmed. The provisional GPIO48 battery-band indicator added in 0.18.9 has therefore been removed.
+
+Production firmware does not drive GPIO48 for battery indication. Battery/charging status remains:
+- blue charger LED: hardware-controlled by the SuperMini charger circuit
+- OLED: USB/battery power state and VBUS monitor
+- battery percentage: intentionally unavailable until a direct B+ sensor is installed and calibrated
+
+The physical production board is authoritative over clone-family pinout assumptions.

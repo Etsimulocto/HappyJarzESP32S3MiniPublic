@@ -2,7 +2,7 @@
 
 | Item | Current value |
 | --- | --- |
-| Firmware | **0.18.6** |
+| Firmware | **0.18.8** |
 | Target | ESP32-S3 SuperMini, SIMPLE profile, 4 MB flash |
 | Sketch | `HappyJarzMini/HappyJarzMini.ino` |
 | Additional sources | `happyjarz_arcade.cpp/.h`, `happyjarz_art.cpp/.h`, `happyjarz_led_types.h` |
@@ -145,7 +145,7 @@ tail -n 12 "$HOME/.happyjarz/firmware_update.log"
 tail -n 8 "$HOME/.happyjarz/plug_watch.log"
 ```
 
-The absent exit marker alone does not prove a process is still running; use the process list and log together. Success requires exit **0**, final application hash verification and a fresh `HJ|IDENTITY|...|fw=0.18.6` line.
+The absent exit marker alone does not prove a process is still running; use the process list and log together. Success requires exit **0**, final application hash verification and a fresh `HJ|IDENTITY|...|fw=0.18.8` line.
 
 ### Interrupted upload recovery
 
@@ -188,3 +188,20 @@ calibration routine ran, not that somebody touched every pad successfully.
 After flashing, leave all pads untouched until startup finishes. Check
 `HJ|TOUCH_CAL` against steady `HJ|INPUT` readings, then touch L/R/Start
 separately. L/R should adjust brightness and emit physical input events.
+
+
+## 0.18.8 — correct SuperMini battery / charging model
+
+Production hardware uses the ESP32-S3 SuperMini B+/B- battery pads with a protected 1-cell LiPo through a JST connector. The OLED and APA106 lamps are powered from the board's regulated 3V3 rail.
+
+GPIO3 is treated as the SuperMini onboard VBUS-sense divider, not as a direct battery-positive measurement. The previous firmware multiplied that reading by a calibration factor and converted it into a LiPo percentage; that could produce believable but false percentages and false LOW BATTERY / CHARGE ME warnings.
+
+Firmware 0.18.8 therefore:
+- removes the old 0.802 battery calibration fudge factor
+- uses GPIO3 only as a VBUS / power-source monitor
+- distinguishes USB power from battery operation using the VBUS rail
+- reports USB charging as hardware-controlled
+- disables battery percentage and low-battery warnings until a direct B+ sense circuit is physically installed and calibrated
+- keeps the OLED and four APA106 lamps on the existing regulated 3V3 production wiring
+
+The POWER display now shows USB/charging or battery power plus the measured VBUS rail and reports battery percentage as N/A. A future direct B+ ADC divider can restore a calibrated fuel gauge without changing the working charging hardware.

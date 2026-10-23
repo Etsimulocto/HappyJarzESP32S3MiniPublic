@@ -2,7 +2,7 @@
 
 | Item | Current value |
 | --- | --- |
-| Firmware | **0.18.11** |
+| Firmware | **0.18.12** |
 | Target | ESP32-S3 SuperMini, SIMPLE profile, 4 MB flash |
 | Sketch | `HappyJarzMini/HappyJarzMini.ino` |
 | Additional sources | `happyjarz_arcade.cpp/.h`, `happyjarz_art.cpp/.h`, `happyjarz_led_types.h` |
@@ -245,3 +245,20 @@ Physical DMM comparison on the production SuperMini showed:
 The VBUS/power-rail calibration factor is therefore set to **1.119**, calculated from 3.67 / 3.28. This is a one-point calibration for the current production board and corrects the displayed rail voltage.
 
 This does not convert GPIO3 into a true battery fuel gauge. Battery percentage remains disabled and the OLED continues to treat this as a power-rail measurement rather than direct B+ cell voltage.
+
+
+## 0.18.12 — OLED is optional; controls stay live
+
+Physical testing showed that unplugging OLED VCC caused the touch controls to stop working. The cause was architectural: OLED presence was being used as the accessory-rail detector, and losing the OLED forced the whole accessory layer into a paused state.
+
+Firmware 0.18.12 removes that coupling:
+
+- OLED presence no longer pauses touch inputs
+- OLED absence no longer clamps the APA106 lamp data output
+- buttons/touch controls continue working with OLED unplugged
+- lamps/pattern engine continue operating without OLED
+- serial, timers, games and other core logic remain active
+- OLED is now treated as an optional hot-pluggable display
+- when the OLED reappears, firmware reinitializes it automatically
+
+GPIO3 remains the calibrated rail/VBUS monitor, not a direct battery fuel gauge.

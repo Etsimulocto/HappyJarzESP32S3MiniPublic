@@ -1,4 +1,4 @@
-// HAPPY JARZ ESP32-S3 SuperMini firmware v0.18.11
+// HAPPY JARZ ESP32-S3 SuperMini firmware v0.18.12
 // SIMPLE profile: nine capacitive inputs, 128x64 OLED, four APA106 lamps,
 // local games/screensavers, and the HAPPY JARZ USB control protocol.
 //
@@ -35,7 +35,7 @@
 #include "happyjarz_led_types.h"
 
 static const char *HJ_HW_VERSION = "V1";
-static const char *HJ_FW_VERSION = "0.18.11";
+static const char *HJ_FW_VERSION = "0.18.12";
 
 static String hjChipId() {
   char id[13];
@@ -78,12 +78,13 @@ static bool hjSleepActive = false;
 static unsigned long hjSleepLastActivityMs = 0;
 static void hjWakeFromSleep(const char *reason);
 
-// HAPPYJARZ_ACCESSORY_PAUSE_V1
-// OLED presence doubles as the switched 3.3 V accessory-rail sensor.
-static bool hjAccessoryPaused = false;
-static bool hjAccessoryKnown = false;
+// HAPPYJARZ_OPTIONAL_OLED_V2
+// The OLED is optional. Its presence must never gate touch inputs or lamps.
+// We only probe it so it can be initialized/reinitialized when connected.
+static bool hjAccessoryPaused = false; // retained for compatibility; no longer driven by OLED absence
+static bool hjAccessoryKnown = true;
 static unsigned long hjAccessoryLastProbeMs = 0;
-static constexpr unsigned long HJ_ACCESSORY_PROBE_MS = 100UL;
+static constexpr unsigned long HJ_ACCESSORY_PROBE_MS = 250UL;
 
 // HAPPYJARZ_LOW_BATTERY_WARNING_EARLY
 static constexpr uint8_t HJ_LOW_BATTERY_LED_INDEX = 3; // physical bulb 4
@@ -3210,10 +3211,7 @@ static void oledInit() {
   bool present = (Wire.endTransmission() == 0);
   if (!present) {
     oledReady = false;
-    hjAccessoryPaused = true;
-    hjAccessoryKnown = true;
-    pinMode(LED_DATA_PIN, OUTPUT);
-    digitalWrite(LED_DATA_PIN, LOW);
+    oled = nullptr;
     return;
   }
 
@@ -3237,86 +3235,37 @@ static bool hjAccessoryRailPresent() {
   return Wire.endTransmission() == 0;
 }
 
-static void hjAccessoryPauseEnter() {
-  if (hjAccessoryPaused && hjAccessoryKnown) return;
-  hjAccessoryPaused = true;
-  hjAccessoryKnown = true;
-  hjStartupCountdownActive = false;
-  hjStartupCountdownPending = false;
-  oledReady = false;
-  pinMode(LED_DATA_PIN, OUTPUT);
-  digitalWrite(LED_DATA_PIN, LOW);
-  if (Serial) Serial.println("HJ|ACCESSORY|state=PAUSED|sensor=OLED");
-}
-
-static void hjAccessoryPauseExit() {
-  if (!hjAccessoryPaused && hjAccessoryKnown) return;
-  hjAccessoryPaused = false;
-  hjAccessoryKnown = true;
-
-  // The OLED lost power, so initialize the controller again from scratch.
-  oledInit();
-  hjArcadeBegin(ARCADE_DISPLAY);
-  if (!oledReady) {
-    hjAccessoryPaused = true;
-    return;
-  }
-
-  oledDirty = true;
-
-  // PAUSE clamps GPIO7 with ordinary GPIO writes. That can detach the pin from
-  // the RMT peripheral/matrix even though the RMT driver object still exists.
-  // Tear it down and bind it again before sending any APA106 data.
-  delay(8);
-  rmtDeinit(LED_DATA_PIN);
-  bool rmtOk = initApa106Rmt();
-  resetPatternEngine();
-
-  if (!rmtOk) {
-    if (Serial) Serial.println("HJ|ACCESSORY|state=ACTIVE|sensor=OLED|lamps=RMT_ERROR");
-    return;
-  }
-
-  // The accessory switch is a user wake action. Show the birthday on every
-  // successful rail restore, independently of the randomized cold-boot choice.
-  hjWakeFromSleep("ACCESSORY");
-  hjStartupCountdownActive = false;
-  hjStartupCountdownPending = hjValidBirthday(ownerBirthday);
-  hjScreensaverTouch();
-
-  if (patternName == "OFF") {
-    allOff();
-  } else {
-    // Push a fresh known-valid frame immediately. Animated patterns then take
-    // over on the next normal service tick.
-    showLeds();
-    delayMicroseconds(200);
-    showLeds();
-  }
-
-  if (Serial) Serial.println("HJ|ACCESSORY|state=ACTIVE|sensor=OLED|lamps=RMT_REBOUND");
-}
-
+// OLED hot-plug service. Screen presence is display-only and must never pause
+// touch inputs, lamp output, games, timers, serial control, or other core logic.
 static void serviceAccessoryPause() {
   unsigned long now = millis();
-  if (hjAccessoryKnown && now - hjAccessoryLastProbeMs < HJ_ACCESSORY_PROBE_MS) return;
+  if (now - hjAccessoryLastProbeMs < HJ_ACCESSORY_PROBE_MS) return;
   hjAccessoryLastProbeMs = now;
 
   bool present = hjAccessoryRailPresent();
-  if (!hjAccessoryKnown) {
-    hjAccessoryKnown = true;
-    hjAccessoryPaused = !present;
-    if (hjAccessoryPaused) {
+
+  if (!present) {
+    if (oledReady || oled != nullptr) {
       oledReady = false;
-      pinMode(LED_DATA_PIN, OUTPUT);
-      digitalWrite(LED_DATA_PIN, LOW);
-      if (Serial) Serial.println("HJ|ACCESSORY|state=PAUSED|sensor=OLED");
+      oled = nullptr;
+      if (Serial) Serial.println("HJ|OLED|state=DISCONNECTED");
     }
+    hjAccessoryPaused = false;
+    hjAccessoryKnown = true;
     return;
   }
 
-  if (!present && !hjAccessoryPaused) hjAccessoryPauseEnter();
-  else if (present && hjAccessoryPaused) hjAccessoryPauseExit();
+  if (!oledReady || oled == nullptr) {
+    oledInit();
+    if (oledReady) {
+      oledDirty = true;
+      hjScreensaverTouch();
+      if (Serial) Serial.println("HJ|OLED|state=CONNECTED");
+    }
+  }
+
+  hjAccessoryPaused = false;
+  hjAccessoryKnown = true;
 }
 
 static void oledRenderHome() {
@@ -3717,7 +3666,7 @@ static void oledRenderInfo() {
     case 9:
       oledCentered(25, "POWER / BATTERY");
       oledCentered(39, "HOME SHOWS STATUS");
-      oledCentered(53, "GPIO3 FUEL GAUGE");
+      oledCentered(53, "GPIO3 RAIL MONITOR");
       break;
     case 10:
       oledCentered(25, "USB + WIFI");

@@ -2,7 +2,7 @@
 
 | Item | Current value |
 | --- | --- |
-| Firmware | **0.18.10** |
+| Firmware | **0.18.11** |
 | Target | ESP32-S3 SuperMini, SIMPLE profile, 4 MB flash |
 | Sketch | `HappyJarzMini/HappyJarzMini.ino` |
 | Additional sources | `happyjarz_arcade.cpp/.h`, `happyjarz_art.cpp/.h`, `happyjarz_led_types.h` |
@@ -233,3 +233,15 @@ Production firmware does not drive GPIO48 for battery indication. Battery/chargi
 - battery percentage: intentionally unavailable until a direct B+ sensor is installed and calibrated
 
 The physical production board is authoritative over clone-family pinout assumptions.
+
+
+## 0.18.11 — production VBUS rail calibration
+
+Physical DMM comparison on the production SuperMini showed:
+
+- external meter: 3.67 V
+- firmware/OLED rail reading: 3.28 V
+
+The VBUS/power-rail calibration factor is therefore set to **1.119**, calculated from 3.67 / 3.28. This is a one-point calibration for the current production board and corrects the displayed rail voltage.
+
+This does not convert GPIO3 into a true battery fuel gauge. Battery percentage remains disabled and the OLED continues to treat this as a power-rail measurement rather than direct B+ cell voltage.

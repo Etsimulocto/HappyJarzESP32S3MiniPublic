@@ -1,4 +1,4 @@
-// HAPPY JARZ ESP32-S3 SuperMini firmware v0.18.10
+// HAPPY JARZ ESP32-S3 SuperMini firmware v0.18.11
 // SIMPLE profile: nine capacitive inputs, 128x64 OLED, four APA106 lamps,
 // local games/screensavers, and the HAPPY JARZ USB control protocol.
 //
@@ -35,7 +35,7 @@
 #include "happyjarz_led_types.h"
 
 static const char *HJ_HW_VERSION = "V1";
-static const char *HJ_FW_VERSION = "0.18.10";
+static const char *HJ_FW_VERSION = "0.18.11";
 
 static String hjChipId() {
   char id[13];
@@ -3508,7 +3508,10 @@ static void oledRenderSettings() {
 // a direct B+ ADC divider is physically installed and calibrated against a DMM.
 static constexpr uint8_t BATTERY_ADC_PIN = 3; // historical name; electrically VBUS sense
 static constexpr float VBUS_DIVIDER_RATIO = 2.0f;
-static constexpr float VBUS_CAL_FACTOR = 1.0f;
+// One-point DMM calibration for the production SuperMini.
+ // 2026-10-23: external meter 3.67 V while raw displayed rail was 3.28 V.
+ // 3.67 / 3.28 = 1.118902..., rounded to 1.119.
+ static constexpr float VBUS_CAL_FACTOR = 1.119f;
 static constexpr float USB_POWER_THRESHOLD_V = 4.35f;
 
 static void fuelGaugeInit() {

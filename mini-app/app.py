@@ -290,7 +290,7 @@ class HappyJarzApp(previous.HappyJarzApp):
 
         items = (
             ("BATTERY", self.power_percent),
-            ("VOLTAGE", self.power_voltage),
+            ("RAIL/VBUS", self.power_voltage),
             ("USB DATA", self.power_usb),
             ("CHARGE", self.power_charge),
             ("ADC", self.power_adc),
@@ -308,7 +308,7 @@ class HappyJarzApp(previous.HappyJarzApp):
         footer.pack(fill="x", pady=(7, 0))
         ttk.Label(
             footer,
-            text="Battery % is voltage-estimated. CHARGING/FULL remains hardware-only until charger status is wired to a GPIO.",
+            text="Battery % unavailable: no direct B+ sensor. RAIL/VBUS is calibrated power-rail voltage; charging state remains hardware LED only.",
             style="PanelMuted.TLabel",
         ).pack(side="left")
         ttk.Button(footer, text="Refresh Power", style="Accent.TButton",
@@ -346,7 +346,7 @@ class HappyJarzApp(previous.HappyJarzApp):
                 if percent and percent != "-1":
                     self.power_percent.set(f"{percent}%")
                 else:
-                    self.power_percent.set("CHECK")
+                    self.power_percent.set("N/A")
 
             if self.power_usb is not None:
                 self.power_usb.set("IN" if fields.get("usb_data", "0") == "1" else "OUT")

@@ -5,11 +5,35 @@ export function init(ctx) {
 let frames=[new Uint8Array(1024),new Uint8Array(1024)], frame=0, previewTimer, painting=false;
 // Keep drafts only on this browser; never transmit them without a user action.
 const ART_STORAGE_KEY='happyjarz-art-v1';
-let saveTimer, storageAvailable=true;
+let saveTimer, storageAvailable=true, restoreWarning='';
+let stored=null;
 try {
-  const stored=localStorage.getItem(ART_STORAGE_KEY);
-  if(stored)frames=importDrawing(JSON.parse(stored));
-}catch(error){storageAvailable=false;console.warn('Art restore unavailable:',error.message);}
+  stored=localStorage.getItem(ART_STORAGE_KEY);
+}catch(error){
+  storageAvailable=false;
+  console.warn('Artwork storage cannot be read:',error.message);
+}
+if(stored!==null){
+  try {
+    frames=importDrawing(JSON.parse(stored));
+  }catch(error){
+    // Invalid saved art is not a storage failure. Back it up before allowing
+    // future drawings to replace the unusable value.
+    try {
+      const backupKey=ART_STORAGE_KEY+'-corrupt';
+      if(localStorage.getItem(backupKey)===null){
+        localStorage.setItem(backupKey,stored);
+        restoreWarning='Previous artwork could not be opened. A recovery copy was kept in this browser; new drawings will save normally.';
+      }else{
+        restoreWarning='Previous artwork could not be opened. An older recovery copy already exists; download a backup of new drawings.';
+      }
+    }catch(backupError){
+      restoreWarning='Previous artwork could not be opened or backed up. Download new drawings for safekeeping.';
+      console.warn('Artwork recovery copy unavailable:',backupError.message);
+    }
+    console.warn('Saved artwork is invalid:',error.message);
+  }
+}
 function saveArtwork(){
   clearTimeout(saveTimer);
   if(!storageAvailable)return;
@@ -73,6 +97,10 @@ $('upload-art').onclick=action(async()=>{
 });
 
 renderArt();
-if(!storageAvailable){const state=document.getElementById('art-save-state');if(state)state.textContent='Browser storage unavailable. Download your drawing for safekeeping.';}
+const artSaveState=document.getElementById('art-save-state');
+if(artSaveState){
+  if(!storageAvailable)artSaveState.textContent='Browser storage unavailable. Download your drawing for safekeeping.';
+  else if(restoreWarning)artSaveState.textContent=restoreWarning;
+}
 return {reset(){cancelGesture();stopPreview();}};
 }

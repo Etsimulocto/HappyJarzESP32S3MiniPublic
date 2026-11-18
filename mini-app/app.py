@@ -37,6 +37,35 @@ class HappyJarzApp(previous.HappyJarzApp):
         self.title(f"HAPPY JARZ Controller v{APP_VERSION}")
         self._log(f"HAPPY JARZ app v{APP_VERSION} • Fuel Gauge UI + OLED marquee art editor active")
 
+    def _build_ui(self):
+        """Extend the proven controller with a separate Console tab.
+
+        Only the tab layout is overridden; serial, lighting, art studio,
+        power telemetry and firmware behavior remain owned by prior layers.
+        """
+        root = ttk.Frame(self, padding=12)
+        root.pack(fill="both", expand=True)
+        self._build_header(root)
+
+        notebook = ttk.Notebook(root)
+        notebook.pack(fill="both", expand=True)
+        tabs = (
+            ("LIGHTS + CONTROL", self._build_control_tab),
+            ("WIFI + CLOCK", self._build_setup_tab),
+            ("DISPLAY + INPUT", self._build_display_tab),
+            ("CONSOLE", self._build_console_tab),
+            ("SERVICE", self._build_service_tab),
+        )
+        for label, builder in tabs:
+            frame = ttk.Frame(notebook, padding=8)
+            notebook.add(frame, text=label)
+            builder(frame)
+
+    def _build_console_tab(self, root):
+        """Console planning and hardware inventory; no device writes."""
+        from console_tab import build_console_tab
+        build_console_tab(root, self._card)
+
     def _build_display_tab(self, root):
         super()._build_display_tab(root)
 

@@ -50,6 +50,7 @@ class HappyJarzApp(previous.HappyJarzApp):
         self._profile_pending = None
         self._build_profile_tab()
         self._build_art_tab()
+        self._build_console_tab()
         self.after(500, self._refresh_birthday_countdown)
         self._log(f"HAPPY JARZ app v{APP_VERSION} • Owner profile + birthday celebration + art studio active")
 
@@ -239,6 +240,17 @@ class HappyJarzApp(previous.HappyJarzApp):
         self.profile_chip_var.set(f"BOARD ID  {chip}" if chip else "Board ID unavailable")
         self.profile_state_var.set("Profile loaded from the Jar." if owner else "Local profile loaded." if local.get("owner") else "No owner profile saved on this Jar.")
         self._refresh_birthday_countdown()
+
+    def _build_console_tab(self):
+        from console_tab import build_console_tab
+
+        console_tab = ttk.Frame(self.notebook, padding=8)
+        self.notebook.insert(
+            self.notebook.index("end") - 1,
+            console_tab,
+            text="CONSOLE"
+        )
+        build_console_tab(console_tab, self._card)
 
     def _build_art_tab(self):
         art_tab = ttk.Frame(self.notebook, padding=8)

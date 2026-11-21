@@ -283,6 +283,16 @@ static void printTouchCalibration() {
 static bool updateInputState(uint8_t idx) {
   TouchPadState &pad = inputs[idx];
   uint32_t value = readTouchPin(pad.pin);
+  // Fail closed if the ESP32 touch driver has not returned valid values.
+  // With a zero baseline/threshold, value >= threshold would otherwise
+  // qualify every pad as pressed, including a phantom B/HOME long-press.
+  if (value == 0 || pad.baseline == 0 || pad.threshold == 0) {
+    pad.touching = false;
+    pad.qualified = false;
+    pad.enteredMs = 0;
+    pad.qualifiedMs = 0;
+    return false;
+  }
   bool above = value >= pad.threshold;
   unsigned long now = millis();
   if (above && !pad.touching) {

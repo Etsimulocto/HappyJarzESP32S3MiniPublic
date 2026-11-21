@@ -4470,6 +4470,9 @@ void setup(){
   hjLoadCustomSayings();
   hjArtInit();
   oledInit();
+  // Wire the existing seven-game arcade to the real OLED drawing adapter.
+  // The arcade engine otherwise has null callbacks and cannot draw frames.
+  hjArcadeBegin(ARCADE_DISPLAY);
   hjScreensaverTouch();
   if(!initApa106Rmt()) Serial.println("HJ|ERR|message=RMT init failed");
   else {

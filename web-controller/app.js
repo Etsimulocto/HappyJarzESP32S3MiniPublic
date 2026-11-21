@@ -132,7 +132,18 @@ $('support').textContent=Boolean(navigator.serial?.requestPort) ? 'USB browser s
 document.querySelectorAll('[data-query]').forEach(button=>button.onclick=action(async()=>{await query(button.dataset.query,button.dataset.response);message('Readout refreshed.');}));
 window.addEventListener('error',event=>{const target=event.target;if(target!==window)log('Resource failed: '+target?.tagName,'error','RESOURCE');else log(`${event.message}\n${event.error?.stack||''}`,'error','JAVASCRIPT');},true);
 window.addEventListener('unhandledrejection',event=>log(event.reason?.stack||event.reason?.message||String(event.reason),'error','UNHANDLED'));
-window.addEventListener('pagehide',()=>diagnostics.flush());
+// A browser tab cannot reliably finish asynchronous USB writes during unload.
+// Warn while connected, and try the normal cleanup on pagehide as a fallback.
+// For guaranteed shutdown, users should click Disconnect before closing the tab.
+window.addEventListener('beforeunload',event=>{
+  if(!port || closing) return;
+  event.preventDefault();
+  event.returnValue='';
+});
+window.addEventListener('pagehide',()=>{
+  diagnostics.flush();
+  if(port && !closing) void disconnect();
+});
 for(const name of ['error','warn']){const original=console[name].bind(console);console[name]=(...args)=>{const text=args.map(a=>{if(typeof a==='string')return a;if(a?.stack)return a.stack;try{return JSON.stringify(a);}catch{return '[unserializable console value]';}}).join(' ');log(text,name==='error'?'error':'warn','CONSOLE');original(...args);};}
 const ctx={ $, ack, query, request, action, controls, message, log, diagnostics, snapshots, environment,
   get identity(){return identity;},get latestIdentity(){return latestIdentity;},get transferring(){return transferring;},set transferring(value){transferring=value;},

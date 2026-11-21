@@ -83,7 +83,7 @@ export function init(ctx) {
     confirmation.disabled = !selected;
     if (!selected) confirmation.checked = false;
     button.disabled = !selected || !confirmation.checked ||
-      !navigator.serial?.requestPort || !crypto?.subtle || !isSecureContext;
+      !navigator.serial?.requestPort || !globalThis.crypto?.subtle || !isSecureContext;
   }
 
   async function checkUpdates() {

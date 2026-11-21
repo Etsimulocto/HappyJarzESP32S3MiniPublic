@@ -18,6 +18,23 @@ The four APA106 lamps use GPIO7, RGB byte order, the ESP32 HAL RMT driver at 10 
 
 Touch controls: UP GPIO4, DOWN GPIO5, LEFT GPIO9, RIGHT GPIO10, A GPIO1, B GPIO2, L GPIO11, R GPIO12 and Start GPIO13. The 3.3 V accessory switch powers the OLED/lamps; OLED presence is the existing rail detector. On resume the firmware reinitializes the OLED and rebinds GPIO7 to RMT before restoring lamp output.
 
+## Board #4 long-wire capacitive-touch tuning — November 20, 2026
+
+Board #4's long copper touch leads were reading approximately **50,000 untouched** and **62,000 when touched**. With the original firmware logic (`threshold = baseline + 20%`), a 50,000 baseline required about **60,000** to qualify as a press, leaving little margin for shorter/faster touches.
+
+The Architect tested a **local, uncommitted 0.18.12 sensitivity patch** on the Raspberry Pi production worktree (`~/HappyJarzESP32S3MiniPublic-art-test`) and reported that buttons now accept **faster successive presses without the previous noticeable delay**. The patch changes only threshold selection:
+
+```cpp
+static uint32_t hjTouchThreshold(uint32_t baseline) {
+  if (baseline >= 45000U) return baseline + 2000U;
+  return baseline + (baseline / 5U);
+}
+```
+
+Use `pad.threshold = hjTouchThreshold(pad.baseline);` in **both** `calibrateInputs()` and the idle baseline update in `updateInputState()`. At a baseline of 50,000, this yields a **52,000 trigger**. Lower-baseline pads retain the original +20% behavior. **The 60 ms touch qualification, press/release semantics, drift tracking, pin map, OLED and APA106 RMT driver are unchanged**; this is a sensitivity improvement, not a removal of debounce or a new auto-repeat feature.
+
+**Source-of-truth warning:** This documents the tested **local** modification and user observation; updating this README does **not** apply the patch to the GitHub firmware source. Before flashing another board, inspect `HappyJarzMini.ino` for `hjTouchThreshold`, preserve a backup, compile successfully and test the actual touch pads. No separate timing/latency benchmark was recorded. Calibrate hands-off; verify each button's idle, touched and threshold telemetry, rapid individual taps, and absence of ghost presses. If idle readings shift or ghost presses appear, retune based on the installed wiring rather than assuming 52,000 is universal.
+
 ## L/R brightness controls — firmware 0.18.6
 
 L decreases and R increases lamp brightness by 5 percentage points per press, clamped to 0–50%. The handler runs before page/game-specific returns and shares physical/host qualified edges. It preserves the current pattern and lamp colors, saves actual changes, updates the OLED and emits STATUS for the app. Holding a pad does not auto-repeat; simultaneous L/R press edges cancel. As with other pads, the first physical press while asleep wakes the device.

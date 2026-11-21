@@ -33,7 +33,7 @@ def check_partitions(path: Path) -> None:
             raise ValueError(f'Invalid partition entry at byte {offset}: 0x{magic:04X}')
         if not size or start + size > 0x400000:
             raise ValueError('Invalid or out-of-range 4 MB partition')
-        parts.append((label.split(b'\\0')[0].decode('ascii'), kind, subtype, start, size))
+        parts.append((label.split(bytes([0]))[0].decode('ascii'), kind, subtype, start, size))
     if not parts:
         raise ValueError('No partition entries found')
     app = [p for p in parts if p[1] == 0 and p[2] in (0, 0x10)]

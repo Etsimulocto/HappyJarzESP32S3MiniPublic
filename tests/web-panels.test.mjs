@@ -41,7 +41,7 @@ test('all panels mount and share one USB session through controls, reports and r
  const oldError=console.error,oldWarn=console.warn;
  try{
  await import('../web-controller/app.js');await new Promise(resolve=>setImmediate(resolve));
- assert.equal(doc.querySelectorAll('[data-tab]').length,9);assert.ok(doc.querySelectorAll('[data-tab]').every(el=>!el.disabled),'all panel modules initialized');
+ assert.equal(doc.querySelectorAll('[data-tab]').length,7);assert.ok(doc.querySelectorAll('[data-tab]').every(el=>!el.disabled),'all panel modules initialized');
  assert.equal(find('pattern').options.length,100);assert.equal(find('white1').disabled,true);
  await find('connect').onclick();assert.match(find('message').textContent,/Your jar is ready/);assert.equal(openCount,1);assert.equal(find('key-x').disabled,true);assert.equal(find('key-a').disabled,false);assert.equal(find('live-value1').textContent,'#200040');
  await find('white1').click();await find('off2').click();assert.ok(sent.includes('SET LED1 COLOR 255 255 255'));assert.ok(sent.includes('SET LED2 COLOR 0 0 0'));

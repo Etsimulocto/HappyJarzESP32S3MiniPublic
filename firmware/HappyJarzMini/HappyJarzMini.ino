@@ -35,7 +35,7 @@
 #include "happyjarz_led_types.h"
 
 static const char *HJ_HW_VERSION = "V1";
-static const char *HJ_FW_VERSION = "0.18.12";
+static const char *HJ_FW_VERSION = "0.18.13";
 
 static String hjChipId() {
   char id[13];

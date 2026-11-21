@@ -130,7 +130,7 @@ candidate from `http://localhost:8000` only. It never publishes an update to
 customers, pushes firmware to GitHub, or silently flashes Board #3.
 
 1. On Windows install Git, Arduino CLI, Python 3 and the ESP32 core. Plug
-   Board #3 into the PC and verify its COM port. The official site should
+   Board #3 into the PC and verify its COM port. If the Arduino core/U8g2 are missing, install them explicitly (or run the builder with -InstallDependencies). The official site should
    report `V1`, `0.18.12`. Close the website serial session afterwards.
 2. Open PowerShell in a checkout of
    `feature/mini-art-gallery-animation`, then run:
@@ -141,7 +141,7 @@ customers, pushes firmware to GitHub, or silently flashes Board #3.
    powershell -ExecutionPolicy Bypass -File .\tools\build_release_windows.ps1
    ```
 
-   The builder compiles with `FlashSize=4M,CDCOnBoot=cdc`, verifies that
+   The builder reuses the installed Arduino toolchain and compiles with `FlashSize=4M,PartitionScheme=default,PSRAM=disabled,CDCOnBoot=cdc`, verifies that
    firmware source/version match, inspects the **compiled** partition table,
    checks for a 0x10000 main application region of length 0x140000 and
    separate NVS/SPIFFS, then stages the binary and release-entry SHA-256 in

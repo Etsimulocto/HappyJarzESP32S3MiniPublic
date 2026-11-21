@@ -20,7 +20,7 @@ A static USB browser controller for the existing SuperMini SIMPLE protocol. No b
 - Saved owner name/birthday and selected firmware-supported IANA time zone; host-time sync.
 - Existing screensaver enter/next/exit commands.
 - Two-frame 128×64 XBM pixel editor, preview, validated JSON import/export and ACK-gated upload to one of 50 slots. Upload replaces the selected slot after confirmation. The draft never formats or trims the gallery.
-- Release catalog check with explicit “not published” state. Firmware installation remains disabled. No firmware or partition changes accompany this draft.
+- The UPDATES panel now includes a gated Web Serial application-only flasher. With the current empty release catalog installation remains disabled; after a verified app binary and matching manifest are published, it validates board metadata and SHA-256 before flashing. No firmware or partition changes accompany this website build.
 
 ## Monday + live BloomSaver background
 
@@ -83,7 +83,7 @@ If the app opens but cannot connect, confirm that the jar is attached to this co
 - Explain first-time **Connect Jar** permission, compatible devices/browsers, reconnecting and common cable/port problems. A phone-friendly layout does not establish phone/tablet USB support.
 - Add remembered-port reconnection while the page is open. A website cannot launch itself from a closed browser when USB is inserted.
 - Build and test an optional one-time Windows helper installation for plug-in launching, similar in purpose to the Pi watcher. It must release the port before browser connection or firmware flashing.
-- Keep website updates separate from board firmware updates. The browser flasher remains disabled; plugging in a jar must not silently flash development firmware.
+- Keep website updates separate from board firmware updates. The browser flasher is guarded by a published verified release manifest and explicit confirmation; plugging in a jar must never silently flash development firmware.
 - Test the full customer flow with someone following only the supplied instructions.
 
 GitHub Pages is the proposed hosting option; a paid domain is optional. The deployment has not been enabled or verified, so the expected URL below is not advertised as a working customer link.

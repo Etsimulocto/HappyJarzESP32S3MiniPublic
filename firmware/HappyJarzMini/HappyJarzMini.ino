@@ -246,13 +246,23 @@ static void prepareTouchInputs() {
   } while (millis() - startedMs < 1000UL);
 }
 
+static uint32_t hjTouchThreshold(uint32_t baseline) {
+  // Long-wire pads: reduced sensitivity margin.
+  // Example: 50000 idle -> 52000 trigger.
+  if (baseline >= 45000U)
+    return baseline + 2000U;
+
+  // Preserve original 20% threshold for other pads.
+  return baseline + (baseline / 5U);
+}
+
 static void calibrateInputs() {
   prepareTouchInputs();
   for (auto &pad : inputs) {
     uint64_t sum = 0;
     for (int i = 0; i < 40; ++i) { sum += readTouchPin(pad.pin); delay(5); }
     pad.baseline = (uint32_t)(sum / 40ULL);
-    pad.threshold = pad.baseline + (pad.baseline / 5U);
+    pad.threshold = hjTouchThreshold(pad.baseline);
     pad.touching = false;
     pad.qualified = false;
     pad.enteredMs = 0;
@@ -284,7 +294,7 @@ static bool updateInputState(uint8_t idx) {
     pad.enteredMs = 0;
     pad.qualifiedMs = 0;
     pad.baseline = (pad.baseline * 127U + value) / 128U;
-    pad.threshold = pad.baseline + (pad.baseline / 5U);
+    pad.threshold = hjTouchThreshold(pad.baseline);
     if (idx == IN_B) bHomeSent = false;
   }
   bool q = pad.touching && (now - pad.enteredMs >= 60);

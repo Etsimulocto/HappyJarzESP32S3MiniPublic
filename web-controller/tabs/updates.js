@@ -10,7 +10,7 @@ const APP_MAX = 0x140000;
 const FLASH_SIZE = 0x400000;
 const TOOL_URL = 'https://unpkg.com/esptool-js@0.7.1/bundle.js';
 
-function validRelease(r) {
+export function validRelease(r) {
   if (!r || r.channel !== 'stable' || r.model !== MODEL ||
       r.hw !== 'V1' || r.chip !== 'ESP32-S3' ||
       r.layout !== LAYOUT || r.flashSize !== 4194304 ||
@@ -147,8 +147,8 @@ export function init(ctx) {
         }
       });
       wrote = true;
-      await loader.after('hard_reset');
       awaitingVersion = release.version;
+      await loader.after('hard_reset');
       progressText('Flash finished. Reconnect using Connect jar to verify firmware ' + release.version + '.',100);
       message('Firmware written. Reconnect the jar to verify the installed version.');
     } catch(error) {

@@ -47,6 +47,7 @@ def check_partitions(path: Path) -> None:
             if max(a[3], b[3]) < min(a[3] + a[4], b[3] + b[4]):
                 raise ValueError(f'Partition overlap: {a[0]} and {b[0]}')
     print('Verified 4MB layout:', ', '.join(f'{p[0]}@0x{p[3]:X}/0x{p[4]:X}' for p in parts))
+    return parts
 
 
 def main() -> None:

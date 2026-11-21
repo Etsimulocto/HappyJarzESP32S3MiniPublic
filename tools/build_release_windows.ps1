@@ -3,7 +3,7 @@
 # NEVER flashes hardware or publishes releases.json.
 param(
     [string]$Version = "",
-    [switch]$SkipDependencyInstall
+    [switch]$InstallDependencies
 )
 
 $ErrorActionPreference = "Stop"
@@ -29,7 +29,8 @@ if (-not (Get-Command py -ErrorAction SilentlyContinue)) {
 }
 
 New-Item -ItemType Directory -Force -Path $build, $out | Out-Null
-if (-not $SkipDependencyInstall) {
+if ($InstallDependencies) {
+    Write-Warning 'Dependency installation may change your Arduino toolchain. Existing installs remain untouched without this switch.'
     & arduino-cli core update-index
     if ($LASTEXITCODE -ne 0) { throw "Arduino board index update failed" }
     & arduino-cli core install esp32:esp32
@@ -38,8 +39,13 @@ if (-not $SkipDependencyInstall) {
     if ($LASTEXITCODE -ne 0) { throw "U8g2 install failed" }
 }
 
-# Explicit 4MB SuperMini and native USB CDC. No PSRAM assumptions.
-$fqbn = "esp32:esp32:esp32s3:FlashSize=4M,CDCOnBoot=cdc"
+# Explicit 4MB SuperMini, default dual-app/NVS/SPIFFS layout and native USB CDC.
+# Existing core and libraries are reused unless -InstallDependencies was requested.
+$fqbn = "esp32:esp32:esp32s3:FlashSize=4M,PartitionScheme=default,PSRAM=disabled,CDCOnBoot=cdc"
+# Preserve a toolchain fingerprint with the staged package for reproduction.
+& arduino-cli version | Out-File -FilePath (Join-Path $out 'toolchain-version.txt')
+& arduino-cli core list | Out-File -FilePath (Join-Path $out 'toolchain-cores.txt')
+& arduino-cli lib list | Out-File -FilePath (Join-Path $out 'toolchain-libraries.txt')
 Write-Host "Building candidate $Version with $fqbn" -ForegroundColor Cyan
 & arduino-cli compile --fqbn $fqbn --output-dir $build $sketch
 if ($LASTEXITCODE -ne 0) { throw "Compilation failed. No release staged." }

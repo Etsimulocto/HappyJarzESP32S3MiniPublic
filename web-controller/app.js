@@ -136,7 +136,8 @@ window.addEventListener('unhandledrejection',event=>log(event.reason?.stack||eve
 // Warn while connected, and try the normal cleanup on pagehide as a fallback.
 // For guaranteed shutdown, users should click Disconnect before closing the tab.
 window.addEventListener('beforeunload',event=>{
-  if(!port || closing) return;
+  // Also guard active firmware flashing after the normal serial port closes.
+  if ((!port && !serviceBusy) || (closing && !serviceBusy)) return;
   event.preventDefault();
   event.returnValue='';
 });

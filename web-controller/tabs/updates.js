@@ -118,11 +118,11 @@ export function init(ctx) {
       progressText('Downloading and checking firmware hash…',0);
       const image = await getVerifiedImage(release.images[0]);
       progressText('SHA-256 verified. Releasing controller serial port…',0);
+      const flashPort = ctx.getPort();
+      if (!flashPort) throw Error('Connected USB port was lost before flashing.');
       await ctx.disconnect();
-      progressText('Choose the same ESP32-S3 serial device for the flasher.',0);
-      // requestPort must run in response to the install button. Browser may reject
-      // delayed permission prompts; users can retry from a new click if needed.
-      const selectedPort = await navigator.serial.requestPort();
+      progressText('Reusing the verified jar USB port for the flasher.',0);
+      const selectedPort = flashPort;
       progressText('Loading ESP32-S3 flasher…',0);
       const { Transport, ESPLoader } = await import(TOOL_URL);
       transport = new Transport(selectedPort, true);

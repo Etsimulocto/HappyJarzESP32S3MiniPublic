@@ -26,7 +26,7 @@ function validRelease(r) {
 
 async function getVerifiedImage(image) {
   // Prevent arbitrary off-site binaries from being installed by the site.
-  const url = new URL(image.url, import.meta.url);
+  const url = new URL(image.url, new URL('../', import.meta.url));
   if (url.origin !== location.origin || !url.pathname.endsWith('.bin'))
     throw Error('Release binary must be a same-origin .bin file.');
   const response = await fetch(url.href, {cache:'no-store', signal:AbortSignal.timeout(30000)});

@@ -153,7 +153,7 @@ const ctx={ $, ack, query, request, action, controls, message, log, diagnostics,
   getPort:()=>port, disconnect, syncClock:()=>panels.setup.syncClock()
 };
 controls();
-for(const [id,file] of [['home','lights-control'],['setup','wifi-clock'],['display','display-input'],['profile','profile'],['art','art'],['service','service'],['updates','updates'],['bloopetz','bloopetz'],['dnd','dnd']]){
+for(const [id,file] of [['home','lights-control'],['setup','wifi-clock'],['display','display-input'],['profile','profile'],['art','art'],['service','service'],['updates','updates']]){
   try{const {init}=await import(`./tabs/${file}.js`);panels[id]=init(ctx);}catch(error){log(`Panel ${id} failed to initialize: ${error.stack || error.message}`,'error','PANEL');document.querySelector(`[data-tab="${id}"]`).disabled=true;message(`The ${id} panel could not load. See the Service log.`,'error');}
 }
 try{panels.monday=initMonday(ctx);}catch(error){log(error.message,'error','MONDAY');}

@@ -19,7 +19,7 @@ function log(text,level='info',kind='RX') {
 function controls() {
   document.querySelectorAll('[data-device]').forEach(el => el.disabled = !identity || connecting || closing || transferring || serviceBusy);
   document.querySelectorAll('[data-key]').forEach(el=>el.disabled=!identity || connecting || closing || transferring || serviceBusy || !deviceControls.has(el.dataset.key));
-  $('connect').disabled = booting || connecting || closing || !navigator.serial?.requestPort;
+  $('connect').disabled = booting || connecting || closing || serviceBusy || !navigator.serial?.requestPort;
   $('connect').hidden = Boolean(identity);
   $('disconnect').hidden = !port;
   $('disconnect').disabled = transferring || closing;
@@ -148,7 +148,8 @@ for(const name of ['error','warn']){const original=console[name].bind(console);c
 const ctx={ $, ack, query, request, action, controls, message, log, diagnostics, snapshots, environment,
   get identity(){return identity;},get latestIdentity(){return latestIdentity;},get transferring(){return transferring;},set transferring(value){transferring=value;},
   get serviceBusy(){return serviceBusy;},set serviceBusy(value){serviceBusy=value;},get connecting(){return connecting;},get closing(){return closing;},
-  get deviceControls(){return deviceControls;},set deviceControls(value){deviceControls=value;},syncClock:()=>panels.setup.syncClock()
+  get deviceControls(){return deviceControls;},set deviceControls(value){deviceControls=value;},
+  getPort:()=>port, disconnect, syncClock:()=>panels.setup.syncClock()
 };
 controls();
 for(const [id,file] of [['home','lights-control'],['setup','wifi-clock'],['display','display-input'],['profile','profile'],['art','art'],['service','service'],['updates','updates'],['bloopetz','bloopetz'],['dnd','dnd']]){

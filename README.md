@@ -1,5 +1,60 @@
 # HAPPY JARZ ESP32-S3 Mini + Pi Mini App
 
+> ## BOARD #3 HANDOFF — November 20–21, 2026 (Windows PC)
+>
+> **Resume here; don't repeat the earlier installation.** On the Windows PC, repo
+> `C:\\Users\\quart\\Documents\\HappyJarzESP32S3MiniPublic`, branch
+> `feature/mini-art-gallery-animation`. Board #3 is the ESP32-S3 V1 on **COM5**,
+> 4 MB embedded flash + 2 MB embedded PSRAM. The production website is
+> `https://jarz.spiralside.com`; test site is **local only** and must be explicitly
+> started again when needed. Do not change the default `main` branch.
+>
+> - **Source version 0.18.13.** Adds `hjArcadeBegin(ARCADE_DISPLAY)` to
+>   initialize the seven-game OLED adapter, plus a fail-closed guard for touch
+>   baselines/thresholds/readings of zero. The games are **not yet physically
+>   validated**, and BLOOPETZ/DND remain future implementations.
+> - **Toolchain:** ESP32 Arduino core **4.0.0** produced a binary of
+>   1,183,640 sketch bytes (~90% of 1,310,720 app partition). Browser Web Serial
+>   application-only flash from the private localhost site **succeeded**:
+>   `fw=0.18.13` was reported after reconnect, but touch calibration was all
+>   zeros, phantom input events occurred, and `GET PROFILE` timed out.
+> - Switched Windows core back to **3.3.12** (verified via
+>   `arduino-cli core list`), rebuilt source 0.18.13 with the zero-touch
+>   safety guard: **1,117,033 bytes (~85% app)**, 53,640 global RAM bytes.
+>   Compiled layout matches Board #3's actual partition table. Staged SHA-256:
+>   `a0dae7840ddef9b82c9b13bca4416bc41464574f8fc26f598999ac2649f405ab`.
+> - **Recovery flash completed:** with browser serial port closed,
+>   `py -3 -m esptool --chip esp32s3 --port COM5 --baud 115200 write-flash 0x10000 .\\release-staging\\candidate\\happyjarz-0.18.13-app.bin`.
+>   Esptool wrote 1,117,184 bytes, verified flash data hash, and reset the
+>   board. Earlier connection-log review indicated normal input/USB telemetry
+>   recovered; run a **fresh post-flash** verification rather than relying on
+>   the long exported historical log for a final pass.
+> - **Preserved local raw flash backups:** `release-staging/board3-backup/nvs.bin`
+>   (20,480 bytes; read from `0x9000`) and `spiffs.bin` (1,441,792 bytes;
+>   read from `0x290000`). **Never commit/share NVS** (may contain Wi-Fi
+>   secrets). Backups cover partition bytes but do not prove filesystem integrity.
+>   Keep both files unchanged and preferably copy them to another private disk.
+> - **Outstanding:** SPIFFS mount reported `-10025` and `HJ|ART|STORAGE|ready=0`;
+>   this is also present in the historical **0.18.12** logs, so **do not
+>   attribute it solely to 0.18.13**. No `ART FORMAT`, `erase-flash`, or
+>   partition-table rewrite. Investigate raw SPIFFS contents/mount compatibility
+>   non-destructively. OLED Base64 mirror warnings appeared in historical logs
+>   and need separate diagnosis. Test GET PROFILE, OLED, LEDs, nine touch pads,
+>   arcade game rendering/buttons, saved profile, and ART READY on hardware.
+> - **Public updater remains locked:** `web-controller/releases.json` contains
+>   no approved release. Do not publish 0.18.13 until preservation, game
+>   operation and browser-update regression tests are complete.
+> - **Pi Board #4 is separate:** keep its uncommitted touch calibration
+>   experiments intact. No blanket git restore/overwrites or unexpected flashing.
+>
+> **Tomorrow's first step:** connect Board #3 to the PC website and capture a
+> **fresh short** boot/diagnostic report after the 3.3.12 recovery flash; verify
+> normal TOUCH_CAL and GET PROFILE, then test actual OLED Games. Investigate
+> artwork storage afterward using the saved raw images. Avoid installing
+> `esp32:esp32@4.0.0` again or running builder `-InstallDependencies`.
+> The old October release notes below are historical; see this handoff for
+> current development state.
+>
 This repository contains the HAPPY JARZ ESP32-S3 SuperMini firmware and its matching Raspberry Pi controller app.
 
 > ## PRODUCTION SOURCE — October 23, 2026

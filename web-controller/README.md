@@ -123,6 +123,61 @@ Expected project URL if Pages is enabled for this repository:
 All assets use relative paths, so project subdirectory hosting works. No custom domain is necessary. The website does not itself authorize or launch on USB insertion.
 
 
+## Board #3: Windows candidate build and local browser test (0.18.13)
+
+**Current public release catalog remains empty.** This procedure serves a
+candidate from `http://localhost:8000` only. It never publishes an update to
+customers, pushes firmware to GitHub, or silently flashes Board #3.
+
+1. On Windows install Git, Arduino CLI, Python 3 and the ESP32 core. Plug
+   Board #3 into the PC and verify its COM port. The official site should
+   report `V1`, `0.18.12`. Close the website serial session afterwards.
+2. Open PowerShell in a checkout of
+   `feature/mini-art-gallery-animation`, then run:
+
+   ```powershell
+   git pull --ff-only
+   py -3 -m pip install esptool
+   powershell -ExecutionPolicy Bypass -File .\tools\build_release_windows.ps1
+   ```
+
+   The builder compiles with `FlashSize=4M,CDCOnBoot=cdc`, verifies that
+   firmware source/version match, inspects the **compiled** partition table,
+   checks for a 0x10000 main application region of length 0x140000 and
+   separate NVS/SPIFFS, then stages the binary and release-entry SHA-256 in
+   `release-staging/candidate/`. A candidate is **not** a tested release.
+3. Back up any irreplaceable art and settings and record the current profile.
+   First-time flash testing can fail and may require bootloader recovery.
+4. To test in Edge against the **same physical Board #3** only, close all
+   other USB controllers, then substitute its actual COM port:
+
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File .\tools\prepare_local_browser_test.ps1 -Port COM4 -IUnderstandFlashRisk -IHaveBackedUpData
+   ```
+
+   This reads the board's partition table from flash offset 0x8000 without
+   writing to it, checks that its partitions exactly match the candidate
+   build, creates a locally served copy of the website with a **local-only**
+   update manifest, and runs a localhost HTTP server. If this verification
+   fails, **do not install or bypass the check**.
+5. Open `http://localhost:8000` in Edge on the PC, connect the jar, select
+   UPDATES, and use the new explicit confirmation to install the staged
+   **test candidate**. Keep USB connected throughout. Afterward reconnect
+   and check `fw=0.18.13`, OLED clock, touch pads, seven arcade games,
+   saved owner/profile, Wi-Fi and saved art.
+
+`localhost` is an allowed secure origin for Web Serial, but this relies on
+browser support and a physical device test. The website flasher has not
+yet been proven on Board #3. An interrupted write can require Arduino
+CLI/esptool recovery. **Do not publish `release-entry.json` to the public
+`releases.json` until this test and data-preservation checks succeed.**
+
+Notes: the candidate source does not include Board #4's uncommitted 40K
+touch experiment; that remains isolated on the Pi. The website has no
+firmware rollback or automatic recovery. Only the app partition is written;
+that is necessary but not sufficient to guarantee preservation unless the
+existing board's actual NVS/SPIFFS partition map is confirmed.
+
 ## Website firmware update center (guarded installer, November 2026)
 
 The UPDATES tab now implements a gated Web Serial ESP32-S3 application flasher using

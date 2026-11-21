@@ -122,6 +122,62 @@ Expected project URL if Pages is enabled for this repository:
 
 All assets use relative paths, so project subdirectory hosting works. No custom domain is necessary. The website does not itself authorize or launch on USB insertion.
 
+
+## Website firmware update center (guarded installer, November 2026)
+
+The UPDATES tab now implements a gated Web Serial ESP32-S3 application flasher using
+the pinned `esptool-js@0.7.1` browser bundle. Its real install button is disabled
+while `releases.json` is empty. **Do not publish a release based only on the branch
+HEAD**; Board #4 has local, uncommitted touch calibration work.
+
+A production release entry must match this shape (example only, NOT a release):
+
+```json
+{
+  "schema": 1,
+  "releases": [{
+    "channel": "stable",
+    "model": "happyjarz-supermini-simple-4mb",
+    "hw": "V1",
+    "chip": "ESP32-S3",
+    "layout": "arduino-4mb-default-app-0x10000-0x140000",
+    "flashSize": 4194304,
+    "version": "0.18.13",
+    "images": [{
+      "url": "./releases/happyjarz-0.18.13-app.bin",
+      "address": 65536,
+      "size": 0,
+      "sha256": "REPLACE_WITH_64_HEX_CHARACTERS"
+    }]
+  }]
+}
+```
+
+Replace the example size with the **actual** build binary size and SHA-256
+(and publish that exact `.bin` under the site origin). No placeholder is accepted.
+The updater rejects entries with missing / incompatible metadata, other flash offsets,
+more than one image, or binaries over the confirmed 0x140000 app budget. It checks
+the binary SHA-256 before releasing the existing browser serial connection. It uses
+the already-selected same port, detects ESP32-S3 in ROM mode, flashes **only**
+the application image at 0x10000, never sets eraseAll, and requests reset. Users
+reconnect using the site's Connect button; firmware version is then checked.
+
+**Release gates before publishing:** confirm exact production Arduino partition
+table and app offset against Board #4, compile and test on a sacrificial/test board,
+confirm native USB ROM bootloader entry works with esptool-js, verify browser
+downloads and the printed SHA-256, preserve NVS and SPIFFS including owner profile
+and art, and test interrupted-flash recovery. Firmware version from HJ identity
+plus hw=V1 is not a cryptographic board attestation; keep the release catalog
+empty until production board identity / compatibility has been independently
+validated. Normal browser usage uses `Disconnect` to close the session first.
+The installer currently requires an existing *connected and running* jar; it is
+not a recovery flasher for an already bricked device.
+
+If a future release is ever published, use the website in a secure context in
+desktop Chrome/Edge, connect your jar, Check for updates, read the warning,
+check the confirmation, and install. Do not use a PC controller and the
+website against the same USB port simultaneously.
+
 ## Firmware release/update design
 
 `releases.json` deliberately contains no installable releases. Do not put development HEAD into an automatic updater. A future tested entry needs a unique hardware model (`happyjarz-supermini-simple-4mb`), version, protocol compatibility, exact partition layout/build settings, artifact URLs, sizes and SHA-256 hashes. HTTPS + hashes detect transfer errors; hashes in the same catalog do not establish independent authenticity. Unattended updates need an authenticated release policy.

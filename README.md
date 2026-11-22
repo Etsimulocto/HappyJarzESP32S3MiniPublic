@@ -1,6 +1,16 @@
 # HAPPY JARZ ESP32-S3 Mini + Pi Mini App
 
-> ## BOARD #3 HANDOFF — November 20–21, 2026 (Windows PC)
+## November 22, 2026 - firmware 0.18.14 release and Board #3 field result
+
+- **Current source/release:** `firmware/VERSION = 0.18.14` on `feature/mini-art-gallery-animation`. Windows build used Arduino ESP32 core **3.3.12**, SIMPLE ESP32-S3 V1, 4 MB flash, app-only image at `0x10000`, maximum app partition `0x140000`. Avoid core 4.0.0: a previous build produced unusable touch readings and unstable controls.
+- **Physically confirmed on Board #3 (COM5):** flashing the staged image, firmware boot/connect, touch navigation, seven on-OLED arcade games, nine selectable screensavers including **BIG CLOCK**, correct local time/date *after manual re-sync*, Web Studio ART two-frame upload/playback, and **art persistence through power cycle**.
+- **Art recovery:** `release-staging/board3-backup/spiffs.bin` was read locally and contained **1,441,792 bytes of 0xFF**, with no allocated/data blocks. The previously uninitialized SPIFFS partition had reported `ART STORAGE OFF` / `ready=0`. Explicit `ART FORMAT` was sent to initialize the **art-only** filesystem; later successful uploads, OLED playback, and persistence establish that storage is now working. Do **not** repeat format on a jar with saved art. NVS/profile was not targeted. Keep raw backups private (especially NVS).
+- **Released artifact:** `web-controller/releases/happyjarz-0.18.14-app.bin`, **1,118,144 bytes**, SHA-256 `a92108a7acd697e761c9859d0a8b77f5a6eef2526fd19ff872b10fa251ddb712`. Release entry: `web-controller/releases.json`; publication commit `209fc11`. Live `https://jarz.spiralside.com` UPDATES page was photographed reporting **connected 0.18.14 / V1** and **published 0.18.14**, correctly disabling reinstallation of the same version.
+- **Still unverified:** an actual *public website* browser firmware installation from an older version to 0.18.14, interruption/recovery, and general compatibility on other jars. The earlier **local** browser test of 0.18.13 succeeded in flashing, but that is not a production updater regression pass. Do not claim customer updater flashing is fully validated.
+- **Post-flash USB note:** Board #3 sometimes hangs at the boot/blank screen after the flasher's RTS reset, yet runs on battery/phone charger, and plugging PC USB into an already-running unit is fine. A complete power-off, USB disconnect, brief wait, and normal battery startup restores it; root cause remains unconfirmed. Serial miniterm lost the COM interface during a reset. Keep serial clients disconnected while flashing.
+- **Pi Board #4 is independent.** Do not overwrite its local touch-sensitivity experiments. The default `main` branch is historically older. The clock may need host/Wi-Fi time synchronization after full power loss; no battery-backed RTC is claimed.
+
+> ## HISTORICAL BOARD #3 HANDOFF — November 20–21, 2026 (superseded above)
 >
 > **Resume here; don't repeat the earlier installation.** On the Windows PC, repo
 > `C:\\Users\\quart\\Documents\\HappyJarzESP32S3MiniPublic`, branch
@@ -57,7 +67,7 @@
 >
 This repository contains the HAPPY JARZ ESP32-S3 SuperMini firmware and its matching Raspberry Pi controller app.
 
-> ## PRODUCTION SOURCE — October 23, 2026
+> ## HISTORICAL PRODUCTION SOURCE — October 23, 2026
 >
 > This branch is the current source used for the physical HAPPY JARZ production build.
 >
@@ -82,7 +92,7 @@ This repository contains the HAPPY JARZ ESP32-S3 SuperMini firmware and its matc
 
 | Component | Version / target |
 | --- | --- |
-| Firmware source | **0.18.8** |
+| Firmware source and published website release | **0.18.14** (Board #3 verified) |
 | Pi Mini app | **1.11.2** |
 | Board | SIMPLE / ESP32-S3 SuperMini / 4 MB flash |
 

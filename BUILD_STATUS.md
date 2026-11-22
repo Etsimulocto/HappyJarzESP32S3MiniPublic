@@ -1,5 +1,27 @@
 # HAPPY JARZ Mini build status
 
+## November 22, 2026 — BLOOMPETZ + DND hardware-test handoff (latest)
+
+**Build/source branch:** `feature/dnd-next-module`, `firmware/VERSION = 0.18.17`. **Published stable:** 0.18.15 on the public Web Studio release catalog; **0.18.16** was the first BLOOMPETZ test candidate, not a public release. Earlier 0.18.14 and 0.18.15 notes below are historical snapshots, not the current development status.
+
+- **Verified on Board #3:** Windows Arduino ESP32 core 3.3.12 successfully compiled 0.18.17: **1,169,301 bytes (89% of 1,310,720 app limit)** and 58,344 bytes global RAM (17%). Default **4 MB dual-app partition map verified**. Candidate staged at `release-staging/candidate/happyjarz-0.18.17-app.bin`, SHA-256 **`3789820a0362a1799ee81531c5045735e5531cd63130fbef386a5ae8c8e26593`**. User's COM5 `esptool` log verified a **1,169,456-byte app-only flash at 0x10000**; no full-flash erase or partition reflash. User confirmed **DND gameplay works on hardware**, including the DND controls tested during the session. Detailed gameplay/save/reboot regression results were not provided; do not claim every path is certified.
+- **Original source recovered and preserved:** Raspberry Pi `~/BloomCircuit/BloomPetz/firmware/bloompetz_v0_1/bloompetz_v0_1.ino` (144,753 bytes), verified SHA-256 **`110bbb5b17b4912364fe05f2824e755d2a29209a8d3d1af25449012b8733602d`** against a second Pi copy. Archived with nine historical `.pre_*` snapshots and the LED header: `Etsimulocto/BloomCircuit`, branch `archive/bloompetz-dnd-original-2026-11-22`, commit `d6f1deb`. Archive is deliberately **not** merged into BloomCircuit main. Other uncommitted Pi files were not staged or modified.
+- **DND integration:** `firmware/HappyJarzMini/happyjarz_dnd.h` ports the original dungeon engine, 48 enemy species, extended equipment/item catalog, rooms, combat, shops, and inventory to HAPPY JARZ's shared 128x64 OLED (7-column HUD + 14-column view over four rows). D-pad moves; tap A then direction attacks; B opens menu; START exits back to HAPPY JARZ. DND has a separate menu visibility toggle and saves in **`hjdnd/state`**, isolated from **`hjpetz`**, **`bloomsys/state`**, existing `happyjarz` settings, and ART SPIFFS. **No original BloomCircuit save migration.**
+- **Web Studio gamepad repair:** Xbox 360 pad `VID_045E PID_028E` enumerated normally on Windows and its buttons worked in the OS test. The Studio's browser-side gamepad relay had been limited to the **Lights + Control** tab and an opt-in checkbox; updated `web-controller/tabs/lights-control.js` to forward gamepad presses on **any tab** when the jar is connected, `Enable computer keyboard + USB gamepad` is checked and the Studio has focus. Keyboard shortcuts still work only on Lights + Control and pause while typing. The status label reports whether gamepad forwarding is ON/OFF. User confirmed **the local Web Studio/gamepad fix works**. No firmware reflash needed for this web-only fix. The **Pi desktop app's separate gamepad handler has not yet been fixed or re-tested**.
+- **Local PC test server:** Windows PowerShell at `C:\Users\quart\Documents\HappyJarzESP32S3MiniPublic`: `py -3 -m http.server 8000 --directory .\web-controller`, then open `http://localhost:8000` in Edge; keep server open, connect the jar, enable host controls. This local test does **not** publish the changed Web Studio files to `jarz.spiralside.com`.
+- **Preservation:** Never erase the device flash, NVS, or SPIFFS; use the verified app-only `0x10000` workflow. Verify the actual COM port after USB reconnect. The board may need an unplug/replug to recover USB enumeration after reset/flash; simply compiling on the PC does not reset it. Keep Pi Board #4 experiments and unrelated Git changes untouched. Firmware 0.18.17 is **physically tested but unpublished**; the production browser updater and complete persistence regression remain separate gates.
+
+### Windows development commands (do not flash automatically)
+
+```powershell
+cd "$HOME\Documents\HappyJarzESP32S3MiniPublic"
+git switch feature/dnd-next-module
+git pull --ff-only origin feature/dnd-next-module
+.\tools\build_release_windows.ps1
+```
+
+
+
 ## November 22, 2026 - firmware 0.18.14 release and Board #3 field result
 
 - **Current source/release:** `firmware/VERSION = 0.18.14` on `feature/mini-art-gallery-animation`. Windows build used Arduino ESP32 core **3.3.12**, SIMPLE ESP32-S3 V1, 4 MB flash, app-only image at `0x10000`, maximum app partition `0x140000`. Avoid core 4.0.0: a previous build produced unusable touch readings and unstable controls.

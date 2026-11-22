@@ -1,5 +1,26 @@
 # HAPPY JARZ Web Studio — draft 0.13
 
+## November 22, 2026 - firmware 0.18.14 release and Board #3 field result
+
+- **Current source/release:** `firmware/VERSION = 0.18.14` on `feature/mini-art-gallery-animation`. Windows build used Arduino ESP32 core **3.3.12**, SIMPLE ESP32-S3 V1, 4 MB flash, app-only image at `0x10000`, maximum app partition `0x140000`. Avoid core 4.0.0: a previous build produced unusable touch readings and unstable controls.
+- **Physically confirmed on Board #3 (COM5):** flashing the staged image, firmware boot/connect, touch navigation, seven on-OLED arcade games, nine selectable screensavers including **BIG CLOCK**, correct local time/date *after manual re-sync*, Web Studio ART two-frame upload/playback, and **art persistence through power cycle**.
+- **Art recovery:** `release-staging/board3-backup/spiffs.bin` was read locally and contained **1,441,792 bytes of 0xFF**, with no allocated/data blocks. The previously uninitialized SPIFFS partition had reported `ART STORAGE OFF` / `ready=0`. Explicit `ART FORMAT` was sent to initialize the **art-only** filesystem; later successful uploads, OLED playback, and persistence establish that storage is now working. Do **not** repeat format on a jar with saved art. NVS/profile was not targeted. Keep raw backups private (especially NVS).
+- **Released artifact:** `web-controller/releases/happyjarz-0.18.14-app.bin`, **1,118,144 bytes**, SHA-256 `a92108a7acd697e761c9859d0a8b77f5a6eef2526fd19ff872b10fa251ddb712`. Release entry: `web-controller/releases.json`; publication commit `209fc11`. Live `https://jarz.spiralside.com` UPDATES page was photographed reporting **connected 0.18.14 / V1** and **published 0.18.14**, correctly disabling reinstallation of the same version.
+- **Still unverified:** an actual *public website* browser firmware installation from an older version to 0.18.14, interruption/recovery, and general compatibility on other jars. The earlier **local** browser test of 0.18.13 succeeded in flashing, but that is not a production updater regression pass. Do not claim customer updater flashing is fully validated.
+- **Post-flash USB note:** Board #3 sometimes hangs at the boot/blank screen after the flasher's RTS reset, yet runs on battery/phone charger, and plugging PC USB into an already-running unit is fine. A complete power-off, USB disconnect, brief wait, and normal battery startup restores it; root cause remains unconfirmed. Serial miniterm lost the COM interface during a reset. Keep serial clients disconnected while flashing.
+- **Pi Board #4 is independent.** Do not overwrite its local touch-sensitivity experiments. The default `main` branch is historically older. The clock may need host/Wi-Fi time synchronization after full power loss; no battery-backed RTC is claimed.
+
+### Publish procedure (verified exact binary)
+
+Use Windows PowerShell in the feature-branch repository after the release candidate was built and **physically verified**:
+
+```powershell
+git pull --ff-only origin feature/mini-art-gallery-animation
+powershell -ExecutionPolicy Bypass -File .\tools\publish_tested_01814_windows.ps1 -Push
+```
+
+The publisher checks the staged **exact known 0.18.14 SHA-256 and size** before copying the binary into `web-controller/releases/` and writing `releases.json`; then commits and pushes. The published website must deploy that commit separately. The live page has been verified to see the manifest. On a jar **already on 0.18.14**, the **Install verified update** button correctly stays disabled. The updater supports only a *newer* released version. A live browser flash from an older installed version is still a pending validation.
+
 A static USB browser controller for the existing SuperMini SIMPLE protocol. No backend, account, Python installation, or paid domain required for website users. This is a development implementation with initial PC hardware results, not a fully verified replacement for the Mini app.
 
 ## Implemented
@@ -20,7 +41,7 @@ A static USB browser controller for the existing SuperMini SIMPLE protocol. No b
 - Saved owner name/birthday and selected firmware-supported IANA time zone; host-time sync.
 - Existing screensaver enter/next/exit commands.
 - Two-frame 128×64 XBM pixel editor, preview, validated JSON import/export and ACK-gated upload to one of 50 slots. Upload replaces the selected slot after confirmation. The draft never formats or trims the gallery.
-- The UPDATES panel now includes a gated Web Serial application-only flasher. With the current empty release catalog installation remains disabled; after a verified app binary and matching manifest are published, it validates board metadata and SHA-256 before flashing. No firmware or partition changes accompany this website build.
+- The UPDATES panel now includes a gated Web Serial application-only flasher. The release catalog now contains the hardware-tested 0.18.14 binary and manifest. The installer validates board metadata and SHA-256, and only offers a version newer than the jar's installed version; live public browser flashing from an older version is not yet validated. No firmware or partition changes accompany this website build.
 
 ## Monday + live BloomSaver background
 
@@ -125,7 +146,7 @@ All assets use relative paths, so project subdirectory hosting works. No custom 
 
 ## Board #3: Windows candidate build and local browser test (0.18.13)
 
-**Current public release catalog remains empty.** This procedure serves a
+**Historical 0.18.13 candidate procedure (not today's release).** This procedure serves a
 candidate from `http://localhost:8000` only. It never publishes an update to
 customers, pushes firmware to GitHub, or silently flashes Board #3.
 
@@ -181,11 +202,9 @@ existing board's actual NVS/SPIFFS partition map is confirmed.
 ## Website firmware update center (guarded installer, November 2026)
 
 The UPDATES tab now implements a gated Web Serial ESP32-S3 application flasher using
-the pinned `esptool-js@0.7.1` browser bundle. Its real install button is disabled
-while `releases.json` is empty. **Do not publish a release based only on the branch
-HEAD**; Board #4 has local, uncommitted touch calibration work.
+the pinned `esptool-js@0.7.1` browser bundle. Firmware 0.18.14 is now published in `releases.json`. Installation is disabled when no newer compatible release exists. **Never release from branch HEAD alone:** publish only the verified binary; Board #4 has independent local touch calibration work.
 
-A production release entry must match this shape (example only, NOT a release):
+A production release entry has this shape (published 0.18.14 metadata):
 
 ```json
 {
@@ -197,12 +216,12 @@ A production release entry must match this shape (example only, NOT a release):
     "chip": "ESP32-S3",
     "layout": "arduino-4mb-default-app-0x10000-0x140000",
     "flashSize": 4194304,
-    "version": "0.18.13",
+    "version": "0.18.14",
     "images": [{
-      "url": "./releases/happyjarz-0.18.13-app.bin",
+      "url": "./releases/happyjarz-0.18.14-app.bin",
       "address": 65536,
-      "size": 0,
-      "sha256": "REPLACE_WITH_64_HEX_CHARACTERS"
+      "size": 1118144,
+      "sha256": "a92108a7acd697e761c9859d0a8b77f5a6eef2526fd19ff872b10fa251ddb712"
     }]
   }]
 }
@@ -217,25 +236,23 @@ the already-selected same port, detects ESP32-S3 in ROM mode, flashes **only**
 the application image at 0x10000, never sets eraseAll, and requests reset. Users
 reconnect using the site's Connect button; firmware version is then checked.
 
-**Release gates before publishing:** confirm exact production Arduino partition
+**Remaining customer-wide release/flash validation gates (0.18.14 already published for this tested V1 target):** confirm exact production Arduino partition
 table and app offset against Board #4, compile and test on a sacrificial/test board,
 confirm native USB ROM bootloader entry works with esptool-js, verify browser
 downloads and the printed SHA-256, preserve NVS and SPIFFS including owner profile
 and art, and test interrupted-flash recovery. Firmware version from HJ identity
-plus hw=V1 is not a cryptographic board attestation; keep the release catalog
-empty until production board identity / compatibility has been independently
-validated. Normal browser usage uses `Disconnect` to close the session first.
+plus hw=V1 is not a cryptographic board attestation; do not extend this release to other board layouts or treat version strings as secure board attestation. Normal browser usage uses `Disconnect` to close the session first.
 The installer currently requires an existing *connected and running* jar; it is
 not a recovery flasher for an already bricked device.
 
-If a future release is ever published, use the website in a secure context in
+For a newer release offered to a compatible board, use the website in a secure context in
 desktop Chrome/Edge, connect your jar, Check for updates, read the warning,
 check the confirmation, and install. Do not use a PC controller and the
 website against the same USB port simultaneously.
 
 ## Firmware release/update design
 
-`releases.json` deliberately contains no installable releases. Do not put development HEAD into an automatic updater. A future tested entry needs a unique hardware model (`happyjarz-supermini-simple-4mb`), version, protocol compatibility, exact partition layout/build settings, artifact URLs, sizes and SHA-256 hashes. HTTPS + hashes detect transfer errors; hashes in the same catalog do not establish independent authenticity. Unattended updates need an authenticated release policy.
+`releases.json` now contains the tested 0.18.14 installable artifact (for older, compatible V1 units). Do not put development HEAD into an automatic updater. A future tested entry needs a unique hardware model (`happyjarz-supermini-simple-4mb`), version, protocol compatibility, exact partition layout/build settings, artifact URLs, sizes and SHA-256 hashes. HTTPS + hashes detect transfer errors; hashes in the same catalog do not establish independent authenticity. Unattended updates need an authenticated release policy.
 
 Proposed pipeline:
 

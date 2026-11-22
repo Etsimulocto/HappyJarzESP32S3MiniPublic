@@ -10,13 +10,13 @@ export const FEATURES=[
  ['home','Lights + Controls'],['setup','Wi-Fi + Clock'],['display','OLED + Screensavers'],
  ['profile','Owner Profile'],['art','Art Studio'],['service','Service + Diagnostics'],
  ['updates','Firmware Updates'],['arcade','Factory Arcade (on jar)'],
- ['pet','BLOOMPETZ (0.18.16 test candidate)'],['dnd','DND (planned install)'],
+ ['pet','BLOOMPETZ (on-device pet game)'],['dnd','DND (on-device dungeon game)'],
  ['hid','USB Macros / Gamepad (planned firmware)']
 ];
 export const PRESETS={
  classic:['home','setup','display','profile','art','service','updates','arcade'],
  pet:['home','setup','display','profile','service','updates','pet'],
- dnd:['home','setup','display','profile','service','updates','dnd','hid'],
+ dnd:['home','setup','display','profile','service','updates','dnd'],
  display:['home','setup','display','art','service','updates'],
  maker:FEATURES.map(x=>x[0])
 };
@@ -67,11 +67,42 @@ export function init(ctx){
  const MENU_ITEMS=['CLOCK','LIGHTS','GAMES','SETTINGS','POWER','SYSTEM','INFO','PROFILE'];
  const MENU_NAMES=['Clock','Lights','Factory Arcade','Alarm + Timer','Power','System (always available)','Info','Profile'];
  const deviceMenuChecks=[];
- let petModuleKnown=false,petModuleVisible=false;
- function supportsPetModule(){
-   return supportsDeviceMenu() && firmwareVersion.split('.').map(Number)[2]>=16 &&
-     firmwareVersion.split('.').map(Number)[0]===0 && firmwareVersion.split('.').map(Number)[1]===18;
+ let petModuleKnown=false,petModuleVisible=false,dndModuleKnown=false,dndModuleVisible=false,moduleReport=null;
+ const featureNotes=new Map();
+ function firmwareAtLeast(major,minor,patch){
+   const fw=firmwareVersion;
+   if(!fw || !/^\d+\.\d+\.\d+$/.test(fw))return false;
+   const [a,b,c]=fw.split('.').map(Number);
+   return a>major || (a===major && (b>minor || (b===minor && c>=patch)));
  }
+ function supportsPetModule(){return firmwareAtLeast(0,18,16);}
+ function supportsDndModule(){return firmwareAtLeast(0,18,17);}
+ function updateDndModule(){
+   const supported=!!ctx.identity && supportsDndModule();
+   for(const id of ['dnd-module-read','dnd-module-on','dnd-module-off'])
+     $(id).disabled=!supported||ctx.serviceBusy||ctx.transferring||ctx.connecting||ctx.closing;
+   $('dnd-module-status').textContent=!ctx.identity?'Connect a jar to check DND.'
+     :!supported?'DND is not reported by this firmware; 0.18.17+ required.'
+     :!dndModuleKnown?'Read DND to check the installed module and OLED menu visibility.'
+     :'Installed: yes. DND OLED menu '+(dndModuleVisible?'visible':'hidden')+'. Game save is retained when hidden.';
+ }
+ async function dndAction(command){
+   if(!supportsDndModule()||!ctx.identity)throw Error('DND requires firmware 0.18.17+.');
+   await deviceMenuWork(async()=>{
+     if(command!=='GET DND MODULE'){
+       if(!confirm('Change only DND OLED menu visibility? Your saved dungeon remains intact.'))return;
+       await ack(command,'SET DND MODULE');
+     }
+     const packet=await ctx.query('GET DND MODULE','DNDMODULE');
+     if(String(packet.data.installed)!=='1')throw Error('DND not installed on this jar.');
+     dndModuleVisible=String(packet.data.visible)==='1';
+     dndModuleKnown=true;updateDndModule();updateFeatureNotes();
+   });
+ }
+ $('dnd-module-read').onclick=()=>void dndAction('GET DND MODULE').catch(e=>message('DND module: '+e.message,'error'));
+ $('dnd-module-on').onclick=()=>void dndAction('SET DND MODULE ON').catch(e=>message('DND module: '+e.message,'error'));
+ $('dnd-module-off').onclick=()=>void dndAction('SET DND MODULE OFF').catch(e=>message('DND module: '+e.message,'error'));
+
  function updatePetModule(){
    const supported=!!ctx.identity && supportsPetModule();
    for(const id of ['pet-module-read','pet-module-on','pet-module-off'])
@@ -92,7 +123,7 @@ export function init(ctx){
      if(String(packet.data.installed)!=='1')throw Error('Pet module not installed.');
      petModuleVisible=String(packet.data.visible)==='1';
      petModuleKnown=true;
-     updatePetModule();
+     updatePetModule();updateFeatureNotes();
    });
  }
  $('pet-module-read').onclick=()=>void petAction('GET PET MODULE').catch(e=>message('Pet module: '+e.message,'error'));
@@ -107,7 +138,7 @@ export function init(ctx){
    return a>0 || (a===0 && (b>18 || (b===18 && c>=15)));
  }
  function updateDeviceMenu(){
-   updatePetModule();
+   updatePetModule();updateDndModule();updateFeatureNotes();
    const supported=!!ctx.identity && supportsDeviceMenu();
    for(let i=0;i<8;i++){
      const check=deviceMenuChecks[i];if(!check)continue;
@@ -140,7 +171,9 @@ export function init(ctx){
    const packet=await ctx.query('GET MODULES','MODULES');
    const mask=Number(packet.data.menu_mask);
    if(!Number.isInteger(mask)||mask<0||mask>255)throw Error('Invalid mask from jar.');
-   deviceMenuMask=mask|32;deviceMenuKnown=true;updateDeviceMenu();
+   deviceMenuMask=mask|32;deviceMenuKnown=true;moduleReport=packet.data;
+   if(packet.data.dnd_visible!==undefined){dndModuleVisible=String(packet.data.dnd_visible)==='1';dndModuleKnown=String(packet.data.dnd)==='1';}
+   updateDeviceMenu();
  }).catch(e=>message('Could not read menu: '+e.message,'error'));
  $('device-menu-apply').onclick=()=>void deviceMenuWork(async()=>{
    if(!deviceMenuKnown)throw Error('Read jar menu before changing it.');
@@ -149,37 +182,57 @@ export function init(ctx){
    await ack('SET MODULES '+mask,'SET MODULES');
    const packet=await ctx.query('GET MODULES','MODULES');
    if(Number(packet.data.menu_mask)!==(mask|32))throw Error('Jar returned an unexpected menu mask.');
-   deviceMenuMask=mask|32;deviceMenuKnown=true;updateDeviceMenu();
+   deviceMenuMask=mask|32;deviceMenuKnown=true;moduleReport=packet.data;updateDeviceMenu();
    message('On-device menu saved and verified.');
  }).catch(e=>message('Could not apply jar menu: '+e.message,'error'));
  $('device-menu-reset').onclick=()=>void deviceMenuWork(async()=>{
-   if(!confirm('Restore all eight original OLED menu entries?'))return;
+   if(!confirm('Restore all factory OLED menu entries, including any installed pet and DND menus? Saved games and artwork remain intact.'))return;
    await ack('RESET MODULES');
    const packet=await ctx.query('GET MODULES','MODULES');
    if(Number(packet.data.menu_mask)!==255)throw Error('Restore verification failed.');
-   deviceMenuMask=255;deviceMenuKnown=true;updateDeviceMenu();
+   deviceMenuMask=255;deviceMenuKnown=true;moduleReport=packet.data;
+   if(supportsPetModule()){petModuleVisible=true;petModuleKnown=true;}
+   if(supportsDndModule()){dndModuleVisible=true;dndModuleKnown=true;}
+   updateDeviceMenu();
    message('Original on-device menu restored.');
  }).catch(e=>message('Could not restore jar menu: '+e.message,'error'));
 
- const APP_TOTAL=0x140000, VERIFIED_APP_BYTES=1118144, ART_TOTAL=0x160000;
+ const APP_TOTAL=0x140000, ART_TOTAL=0x160000;
+ // Values come from measured Arduino output, never inferred from UI checkbox states.
+ const MEASURED_APPS=Object.freeze({'0.18.14':1118144,'0.18.17':1169301});
  function kib(value){return (value/1024).toLocaleString('en-US',{maximumFractionDigits:1})+' KiB';}
  function updateStorage(){
-  const verified=!!ctx.identity && firmwareVersion==='0.18.14';
-  const remaining=APP_TOTAL-VERIFIED_APP_BYTES;
-  $('storage-app-label').textContent=verified
-   ?kib(VERIFIED_APP_BYTES)+' used / '+kib(remaining)+' available'
-   :firmwareVersion?'Firmware '+firmwareVersion+': size not measured':'Connect a jar for verified usage';
-  $('storage-app-fill').style.width=verified?(100*VERIFIED_APP_BYTES/APP_TOTAL).toFixed(2)+'%':'0%';
-  $('storage-app-meter').setAttribute('aria-valuenow',verified?String(Math.round(100*VERIFIED_APP_BYTES/APP_TOTAL)):'0');
-  $('storage-app-detail').textContent=verified
-   ?'85.3% used of '+kib(APP_TOTAL)+' application slot. This is the verified v0.18.14 release image; other firmware versions need their own measurements.'
-   :'Published 0.18.14 uses '+kib(VERIFIED_APP_BYTES)+' of '+kib(APP_TOTAL)+'; connected firmware use is unknown until verified.';
+  const measured=firmwareVersion && MEASURED_APPS[firmwareVersion];
+  const remaining=measured!==undefined?APP_TOTAL-measured:null;
+  $('storage-app-label').textContent=measured!==undefined
+   ?kib(measured)+' used / '+kib(remaining)+' remaining'
+   :firmwareVersion?'Firmware '+firmwareVersion+': no measured sketch size':'Connect a jar for build-specific figures';
+  $('storage-app-fill').style.width=measured!==undefined?(100*measured/APP_TOTAL).toFixed(2)+'%':'0%';
+  $('storage-app-meter').setAttribute('aria-valuenow',measured!==undefined?String(Math.round(100*measured/APP_TOTAL)):'0');
+  $('storage-app-detail').textContent=measured!==undefined
+   ?(100*measured/APP_TOTAL).toFixed(1)+'% of the '+kib(APP_TOTAL)+' application slot (compiled sketch measurement for '+firmwareVersion+'). Includes every compiled module; hiding menu items frees 0 KiB.'
+   :'No verified build-size measurement for this installed firmware. Module checkboxes never remove compiled code.';
   $('storage-art-label').textContent=kib(ART_TOTAL)+' partition'+(artCount!==null?' · '+artCount+'/50 art slots':'');
   $('storage-art-fill').style.width=artCount===null?'0%':(artCount*2)+'%';
   $('storage-art-meter').setAttribute('aria-valuenow',String(artCount??0));
   $('storage-art-detail').textContent=artCount===null
-   ?'Art slot occupancy not read. Firmware 0.18.14 does not expose exact SPIFFS free bytes.'
+   ?'Art slot occupancy not read. Firmware does not expose exact SPIFFS free bytes.'
    :artCount+' of 50 slots occupied. Picture payload can be 1,024–2,048 bytes per slot. Actual filesystem free bytes are not reported; other files and overhead are not included.';
+ }
+ function updateFeatureNotes(){
+   for(const [id,note] of featureNotes){
+     let label='Included in Web Studio · hiding saves 0 KiB';
+     if(id==='arcade')label=ctx.identity?'On-device arcade included · hiding saves 0 KiB':'On-device arcade · connect jar to verify';
+     if(id==='pet')label=petModuleKnown?'Installed on jar · OLED '+(petModuleVisible?'shown':'hidden')+' · 0 KiB freed'
+       :supportsPetModule()?'Firmware supports BLOOMPETZ · select Read BLOOMPETZ to verify'
+       :'Requires firmware 0.18.16+ · 0 KiB freed';
+     if(id==='dnd')label=dndModuleKnown?'Installed on jar · OLED '+(dndModuleVisible?'shown':'hidden')+' · 0 KiB freed'
+       :supportsDndModule()?'Firmware supports DND · select Read DND to verify'
+       :'Requires firmware 0.18.17+ · 0 KiB freed';
+     if(id==='hid')label='Native USB HID/MIDI not implemented · browser gamepad forwarding works';
+     note.textContent=label;
+     note.title='These checkboxes control browser layout only. Use the separate on-device menu controls to show or hide a game on the OLED.';
+   }
  }
 
  function save(){
@@ -228,9 +281,7 @@ export function init(ctx){
   });
   const title=document.createElement('span');title.textContent=label;
   const note=document.createElement('small');
-  const planned=['pet','dnd','hid'].includes(id);
-  note.textContent=planned?'Not installed · 0 KiB used':'Already included · 0 KiB freed if hidden';
-  note.title=planned?'This module is not in firmware 0.18.14. Size after implementation is not yet known.':'Feature is part of the existing compiled firmware. Its individual size has not been measured.';
+  featureNotes.set(id,note);
   row.append(check,title,note);$('experience-features').append(row);featureInputs.set(id,check);
  }
  for(const [name,pin] of PADS){
@@ -301,7 +352,10 @@ export function init(ctx){
  const safeCommands=new Set(['SAVER NEXT','SAVER PREV','SAVER ENTER','SAVER EXIT','SAVER RESEED','SAVE']);
  return {
   receive({type,data}){
-   if(type==='IDENTITY'){boardId=data.chip||data.serial||'V1';firmwareVersion=data.fw||null;deviceMenuKnown=false;petModuleKnown=false;status();updateStorage();updateDeviceMenu();}
+   if(type==='IDENTITY'){boardId=data.chip||data.serial||'V1';firmwareVersion=data.fw||null;deviceMenuKnown=false;petModuleKnown=false;dndModuleKnown=false;moduleReport=null;status();updateStorage();updateDeviceMenu();}
+   if(type==='MODULES'){moduleReport=data;const n=Number(data.menu_mask);if(Number.isInteger(n)){deviceMenuMask=n|32;deviceMenuKnown=true;}if(data.dnd_visible!==undefined){dndModuleKnown=String(data.dnd)==='1';dndModuleVisible=String(data.dnd_visible)==='1';}updateDeviceMenu();}
+   if(type==='PETMODULE'){petModuleKnown=String(data.installed)==='1';petModuleVisible=String(data.visible)==='1';updateDeviceMenu();}
+   if(type==='DNDMODULE'){dndModuleKnown=String(data.installed)==='1';dndModuleVisible=String(data.visible)==='1';updateDeviceMenu();}
    if(type!=='EVENT'||!config.bridge||!ctx.identity||ctx.serviceBusy||ctx.transferring||ctx.connecting||ctx.closing||busy)return;
    // Never echo actions from app KEY commands back into the jar. Physical presses only.
    if(data.source==='host')return; // Native firmware physical events omit source; host KEY events say source=host.
@@ -313,7 +367,7 @@ export function init(ctx){
     .catch(error=>{log('Mapped input failed: '+error.message,'warn','EXPERIENCE');})
     .finally(()=>{busy=false;});
   },
-  reset(){boardId=null;firmwareVersion=null;artCount=null;deviceMenuKnown=false;petModuleKnown=false;status();updateStorage();updateDeviceMenu();},
+  reset(){boardId=null;firmwareVersion=null;artCount=null;deviceMenuKnown=false;petModuleKnown=false;dndModuleKnown=false;moduleReport=null;status();updateStorage();updateDeviceMenu();},
   onShow(){status();updateStorage();updateDeviceMenu();},
   getConfiguration(){return structuredClone(config);}
  };

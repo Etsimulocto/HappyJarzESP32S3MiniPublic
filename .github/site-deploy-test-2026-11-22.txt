@@ -1,5 +1,0 @@
-HAPPY JARZ Web Studio public testing deployment
-Date: 2026-11-22
-Source: feature/dnd-next-module
-Scope: web-controller/ only; releases.json keeps approved 0.18.15 stable catalog.
-This marker triggers the one-time GitHub Pages test-site deployment.

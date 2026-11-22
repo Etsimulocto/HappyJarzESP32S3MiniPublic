@@ -135,7 +135,7 @@ export function init(ctx){
  };
  $('experience-simple').onchange=()=>{config.simple=$('experience-simple').checked;save();render();};
  $('experience-bridge').onchange=()=>{config.bridge=$('experience-bridge').checked;save();render();};
- $('experience-start').onchange=()=>{config.home=$('experience-start').value;save();render();};
+ $('experience-start').onchange=()=>{config.home=$('experience-start').value;save();render();if(!config.simple||config.features.includes(config.home))document.querySelector('[data-tab="'+config.home+'"]')?.click();};
  $('experience-reset').onclick=()=>{
   if(!confirm('Restore the factory Web Studio layout and clear this browser\'s control mappings? Jar data is unaffected.'))return;
   config=validateConfig(DEFAULT_CONFIG);save();render();message('Factory Web Studio layout restored. Jar unchanged.');
@@ -167,6 +167,7 @@ export function init(ctx){
   save();render();message('Mapping preset saved in browser. Future HID/MIDI mappings are not active yet.');
  };
  render();
+ if(!config.simple||config.features.includes(config.home))document.querySelector('[data-tab="'+config.home+'"]')?.click();
  const safeCommands=new Set(['SAVER NEXT','SAVER PREV','SAVER ENTER','SAVER EXIT','SAVER RESEED','SAVE']);
  return {
   receive({type,data}){

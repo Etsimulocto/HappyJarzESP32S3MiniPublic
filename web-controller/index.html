@@ -60,6 +60,12 @@
 <section class="experience-storage" aria-label="On-device menu configuration">
 <p>Choose which of the existing eight menu items the jar itself displays. This is separate from the browser-only feature switches below. SYSTEM always remains accessible. Requires firmware 0.18.15 or newer.</p>
 <div id="device-menu-choices" class="experience-features"></div>
+<div class="row" id="pet-module-row">
+  <button id="pet-module-read" data-device>Read BLOOMPETZ</button>
+  <button id="pet-module-on" data-device>Show BLOOMPETZ menu</button>
+  <button id="pet-module-off" data-device>Hide BLOOMPETZ menu</button>
+</div>
+<p id="pet-module-status" role="status">BLOOMPETZ module controls require unreleased firmware 0.18.16 or later.</p>
 <div class="row"><button id="device-menu-read" data-device>Read jar menu</button><button id="device-menu-apply" data-device>Apply menu to jar</button><button id="device-menu-reset" data-device>Restore full jar menu</button></div>
 <p id="device-menu-status" role="status">Connect an updated jar to manage its menu. Published firmware 0.18.14 does not support this feature.</p>
 <p class="help">Only OLED menu visibility changes. Firmware code, artwork, profile and data remain intact. No BLOOMPETZ/DND install is implied. The jar keeps its normal input behavior.</p>

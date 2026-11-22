@@ -10,7 +10,7 @@ export const FEATURES=[
  ['home','Lights + Controls'],['setup','Wi-Fi + Clock'],['display','OLED + Screensavers'],
  ['profile','Owner Profile'],['art','Art Studio'],['service','Service + Diagnostics'],
  ['updates','Firmware Updates'],['arcade','Factory Arcade (on jar)'],
- ['pet','BLOOMPETZ (planned install)'],['dnd','DND (planned install)'],
+ ['pet','BLOOMPETZ (0.18.16 test candidate)'],['dnd','DND (planned install)'],
  ['hid','USB Macros / Gamepad (planned firmware)']
 ];
 export const PRESETS={
@@ -67,6 +67,38 @@ export function init(ctx){
  const MENU_ITEMS=['CLOCK','LIGHTS','GAMES','SETTINGS','POWER','SYSTEM','INFO','PROFILE'];
  const MENU_NAMES=['Clock','Lights','Factory Arcade','Alarm + Timer','Power','System (always available)','Info','Profile'];
  const deviceMenuChecks=[];
+ let petModuleKnown=false,petModuleVisible=false;
+ function supportsPetModule(){
+   return supportsDeviceMenu() && firmwareVersion.split('.').map(Number)[2]>=16 &&
+     firmwareVersion.split('.').map(Number)[0]===0 && firmwareVersion.split('.').map(Number)[1]===18;
+ }
+ function updatePetModule(){
+   const supported=!!ctx.identity && supportsPetModule();
+   for(const id of ['pet-module-read','pet-module-on','pet-module-off'])
+     $(id).disabled=!supported||ctx.serviceBusy||ctx.transferring||ctx.connecting||ctx.closing;
+   $('pet-module-status').textContent=!ctx.identity?'Connect a jar to check for BLOOMPETZ.'
+     :!supported?'BLOOMPETZ pet module requires candidate firmware 0.18.16+.'
+     :!petModuleKnown?'Tap Read BLOOMPETZ to check on-device installation.'
+     :'Installed: yes (3 pet slots, 200 stats). Menu '+(petModuleVisible?'visible':'hidden')+'. Data is retained if hidden.';
+ }
+ async function petAction(command){
+   if(!supportsPetModule()||!ctx.identity)throw Error('Requires 0.18.16+ firmware.');
+   await deviceMenuWork(async()=>{
+     if(command!=='GET PET MODULE'){
+       if(!confirm('Change only BLOOMPETZ OLED menu visibility? Saved pet data stays intact.'))return;
+       await ack(command,'SET PET MODULE');
+     }
+     const packet=await ctx.query('GET PET MODULE','PETMODULE');
+     if(String(packet.data.installed)!=='1')throw Error('Pet module not installed.');
+     petModuleVisible=String(packet.data.visible)==='1';
+     petModuleKnown=true;
+     updatePetModule();
+   });
+ }
+ $('pet-module-read').onclick=()=>void petAction('GET PET MODULE').catch(e=>message('Pet module: '+e.message,'error'));
+ $('pet-module-on').onclick=()=>void petAction('SET PET MODULE ON').catch(e=>message('Pet module: '+e.message,'error'));
+ $('pet-module-off').onclick=()=>void petAction('SET PET MODULE OFF').catch(e=>message('Pet module: '+e.message,'error'));
+
  let deviceMenuMask=null,deviceMenuKnown=false;
  function supportsDeviceMenu(){
    const fw=firmwareVersion;
@@ -75,6 +107,7 @@ export function init(ctx){
    return a>0 || (a===0 && (b>18 || (b===18 && c>=15)));
  }
  function updateDeviceMenu(){
+   updatePetModule();
    const supported=!!ctx.identity && supportsDeviceMenu();
    for(let i=0;i<8;i++){
      const check=deviceMenuChecks[i];if(!check)continue;
@@ -268,7 +301,7 @@ export function init(ctx){
  const safeCommands=new Set(['SAVER NEXT','SAVER PREV','SAVER ENTER','SAVER EXIT','SAVER RESEED','SAVE']);
  return {
   receive({type,data}){
-   if(type==='IDENTITY'){boardId=data.chip||data.serial||'V1';firmwareVersion=data.fw||null;deviceMenuKnown=false;status();updateStorage();updateDeviceMenu();}
+   if(type==='IDENTITY'){boardId=data.chip||data.serial||'V1';firmwareVersion=data.fw||null;deviceMenuKnown=false;petModuleKnown=false;status();updateStorage();updateDeviceMenu();}
    if(type!=='EVENT'||!config.bridge||!ctx.identity||ctx.serviceBusy||ctx.transferring||ctx.connecting||ctx.closing||busy)return;
    // Never echo actions from app KEY commands back into the jar. Physical presses only.
    if(data.source==='host')return; // Native firmware physical events omit source; host KEY events say source=host.
@@ -280,7 +313,7 @@ export function init(ctx){
     .catch(error=>{log('Mapped input failed: '+error.message,'warn','EXPERIENCE');})
     .finally(()=>{busy=false;});
   },
-  reset(){boardId=null;firmwareVersion=null;artCount=null;deviceMenuKnown=false;status();updateStorage();updateDeviceMenu();},
+  reset(){boardId=null;firmwareVersion=null;artCount=null;deviceMenuKnown=false;petModuleKnown=false;status();updateStorage();updateDeviceMenu();},
   onShow(){status();updateStorage();updateDeviceMenu();},
   getConfiguration(){return structuredClone(config);}
  };

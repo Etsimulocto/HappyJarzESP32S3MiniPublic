@@ -9,6 +9,11 @@ const panels={};
 let latestIdentity, usbInfo, diagnosticFlushTimer, serviceBusy=false;
 let port, reader, writer, readTask, identity, pending, queue = Promise.resolve(), closing = false, connecting = false, transferring = false;
 let pollTimer, handshakeTimer;
+// ESP32-S3 native USB Serial/JTAG identifies as Espressif 303A:1001.
+// Browser may reuse only ports previously authorized by the user.
+const ESP_S3_USB_VID=0x303A, ESP_S3_USB_PID=0x1001;
+let manualDisconnect=false,autoConnecting=false,autoEnabled=true;
+try { autoEnabled=storage?.getItem('happyjarz-auto-connect')!=='off'; } catch {}
 let deviceControls=new Set(), connectionGeneration=0, booting=true;
 const telemetryLogTimes={};
 function message(text,level='info') { $('message').textContent = text; log(text,level,'UI'); }
@@ -24,6 +29,31 @@ function controls() {
   $('disconnect').hidden = !port;
   $('disconnect').disabled = transferring || closing;
   $('connection').textContent = identity ? 'Jar connected' : connecting ? 'Connecting…' : 'Jar disconnected';
+}
+function isNativeS3Port(candidate){
+  const info=candidate?.getInfo?.()||{};
+  return info.usbVendorId===ESP_S3_USB_VID && info.usbProductId===ESP_S3_USB_PID;
+}
+function autoControl(){
+  const toggle=$('auto-connect');
+  if(toggle)toggle.checked=autoEnabled;
+}
+async function autoConnectAuthorized(){
+  if(!autoEnabled||manualDisconnect||autoConnecting||booting||connecting||closing||
+     port||identity||transferring||serviceBusy||!navigator.serial?.getPorts)return;
+  autoConnecting=true;
+  try{
+    const authorized=await navigator.serial.getPorts();
+    if(!autoEnabled||manualDisconnect||connecting||closing||port||identity)return;
+    const matches=authorized.filter(isNativeS3Port);
+    if(matches.length!==1){
+      if(matches.length>1)log('Multiple authorized ESP32-S3 USB Serial/JTAG ports. Choose Connect jar manually.','warn','USB');
+      return;
+    }
+    log('Found exactly one previously authorized ESP32-S3 USB Serial/JTAG port; attempting auto-connect.','info','USB');
+    await connect(matches[0],true);
+  }catch(error){log('Automatic USB reconnection unavailable: '+error.message,'warn','USB');}
+  finally{autoConnecting=false;}
 }
 function rejectPending(error) { if (pending) { clearTimeout(pending.timer); const p = pending; pending = null; log(`${p.command}: ${error.message}`,'error','REQUEST');p.reject(error); } }
 function receive(line) {
@@ -82,11 +112,16 @@ function request(command, match, timeout=5000) {
 }
 function ack(command, response=command) { return request(command,p=>p.type==='ACK' && p.data.command===response); }
 function query(command,type) { return request(command,p=>p.type===type); }
-async function connect() {
+async function connect(selectedPort=null,automated=false) {
+  if(connecting||closing||port||identity||transferring||serviceBusy)return;
+  // Do not let a past explicit Disconnect trigger another automatic reconnect.
+  if(!automated)manualDisconnect=false;
   connectionGeneration++;deviceControls=new Set();notifyPanels('reset');
-  connecting=true; controls(); message('Select your jar. Keep the Pi controller closed.');
+  connecting=true; controls(); message(automated?'Reconnecting to your previously paired ESP32-S3…':'Select your jar. Keep the Pi controller closed.');
   try {
-    port=await navigator.serial.requestPort();
+    // Manual requestPort must run immediately in the user's click handler.
+    port=selectedPort || await navigator.serial.requestPort();
+    if(automated&&!isNativeS3Port(port))throw Error('Authorized port is not the expected native ESP32-S3 USB Serial/JTAG interface.');
     for(const key of Object.keys(snapshots))delete snapshots[key];
     usbInfo=port.getInfo?.() || {};log(JSON.stringify(usbInfo),'info','USB');
     await port.open({baudRate:115200});
@@ -96,6 +131,8 @@ async function connect() {
     const hello=request('HELLO',p=>p.type==='IDENTITY',8000);
     handshakeTimer=setInterval(()=>write('HELLO').catch(()=>{}),300);
     try { await hello; } finally { clearInterval(handshakeTimer); }
+    if(!identity || identity.hw!=='V1' || !/^\d+\.\d+\.\d+$/.test(String(identity.fw||'')))
+      throw Error('Connected USB device did not identify itself as compatible HAPPY JARZ V1 firmware.');
     for (const [command,type] of [['GET PROFILE','PROFILE'],['GET STATUS','STATUS'],['GET POWER','POWER']]) await query(command,type);
     await query('GET CAPS','CAPS');
     await query('GET TIME STATUS','TIME');
@@ -117,7 +154,13 @@ async function disconnect() {
   try { await port?.close(); } catch(error){log(error.message,'warn','USB-CLEANUP');} port=null; readTask=null; closing=false; controls();
 }
 function action(fn) { return async event => { event?.preventDefault(); try { await fn(); } catch(error) { message(error.message,'error'); } }; }
-$('connect').onclick=connect; $('disconnect').onclick=()=>void disconnect();
+$('connect').onclick=()=>void connect();
+$('disconnect').onclick=()=>{manualDisconnect=true;void disconnect();};
+$('auto-connect').onchange=()=>{
+  autoEnabled=$('auto-connect').checked;
+  try{storage?.setItem('happyjarz-auto-connect',autoEnabled?'on':'off');}catch{}
+  if(autoEnabled){manualDisconnect=false;void autoConnectAuthorized();}
+};
 document.querySelectorAll('[data-tab]').forEach(button=>button.onclick=()=>{
   document.querySelectorAll('.panel').forEach(p=>p.hidden=p.id!==button.dataset.tab);
   document.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-selected',String(b===button)));
@@ -159,7 +202,16 @@ for(const [id,file] of [['home','lights-control'],['setup','wifi-clock'],['displ
 try{panels.monday=initMonday(ctx);}catch(error){log(error.message,'error','MONDAY');}
 try{panels.background=initBackground(ctx);}catch(error){log(error.message,'error','BACKGROUND');}
 booting=false;
+autoControl();
 log(JSON.stringify(environment()),'info','SESSION');controls();
+// getPorts() cannot grant permission; first visit still requires clicking Connect
+// and choosing a device in the browser's chooser.
+void autoConnectAuthorized();
+navigator.serial?.addEventListener?.('connect',()=>{
+  // After unplug/replug, Web Serial can announce a re-enumerated authorized port.
+  // Deliberately do not retry if the user clicked Disconnect.
+  void autoConnectAuthorized();
+});
 
 function notifyPanels(method,payload){for(const [id,panel] of Object.entries(panels)){try{panel[method]?.(payload);}catch(error){log(`Panel ${id}: ${error.stack || error.message}`,'error','PANEL');}}}
 function environment(){return {userAgent:navigator.userAgent,language:navigator.language,languages:navigator.languages,timezone:Intl.DateTimeFormat().resolvedOptions().timeZone,timezoneOffsetMinutes:new Date().getTimezoneOffset(),secureContext:isSecureContext,webSerialAvailable:Boolean(navigator.serial?.requestPort),online:navigator.onLine,origin:location.origin,viewport:{width:innerWidth,height:innerHeight},usb:usbInfo||null};}

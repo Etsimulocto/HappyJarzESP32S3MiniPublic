@@ -35,7 +35,7 @@
 #include "happyjarz_led_types.h"
 
 static const char *HJ_HW_VERSION = "V1";
-static const char *HJ_FW_VERSION = "0.18.14";
+static const char *HJ_FW_VERSION = "0.18.15";
 
 static String hjChipId() {
   char id[13];
@@ -340,6 +340,28 @@ static String screensaver = "CLOCK";
 static uint16_t screensaverDelayMin = 5;
 static String ownerName;
 static String ownerBirthday = "--";
+// Menu visibility: 8 original entries. SYSTEM is always available for recovery.
+// Hiding menu entries does NOT remove compiled functions or recover flash bytes.
+static constexpr uint8_t HJ_MENU_ALL = 0xFF;
+static constexpr uint8_t HJ_MENU_SYSTEM_BIT = 1U << 5;
+static uint8_t hjMenuMask = HJ_MENU_ALL;
+static uint8_t hjMenuCount() {
+  uint8_t count=0;
+  for(uint8_t i=0;i<8;++i) if(hjMenuMask & (1U<<i)) count++;
+  return count;
+}
+static uint8_t hjMenuIdAt(uint8_t visibleIndex) {
+  for(uint8_t i=0;i<8;++i) if(hjMenuMask & (1U<<i)) {
+    if(!visibleIndex) return i;
+    --visibleIndex;
+  }
+  return 5; // SYSTEM recovery fallback
+}
+static uint8_t hjMenuIndexNext(uint8_t index, int8_t delta) {
+  uint8_t count=hjMenuCount();
+  return (uint8_t)((index + count + delta) % count);
+}
+
 static time_t hjBirthdayCacheMinute = (time_t)-1;
 static bool hjBirthdayCacheValue = false;
 static bool hjBirthdayToday();
@@ -394,6 +416,7 @@ static void loadSettings() {
   screensaverDelayMin = prefs.getUShort("ss_delay", 5);
   ownerName = prefs.getString("owner_name", "");
   ownerBirthday = prefs.getString("owner_bday", "--");
+  hjMenuMask = prefs.getUChar("menu_mask", HJ_MENU_ALL) | HJ_MENU_SYSTEM_BIT;
   inputMode = "JAR";
   prefs.end();
 }
@@ -417,6 +440,7 @@ static void persistSettings() {
   prefs.putUShort("ss_delay", screensaverDelayMin);
   prefs.putString("owner_name", ownerName);
   prefs.putString("owner_bday", ownerBirthday);
+  prefs.putUChar("menu_mask", hjMenuMask);
   prefs.end();
 }
 
@@ -3344,14 +3368,14 @@ static void oledRenderHome() {
 
 static void oledRenderMainMenu() {
   static const char *items[] = {"CLOCK", "LIGHTS", "GAMES", "SETTINGS", "POWER", "SYSTEM", "INFO", "PROFILE"};
-  static constexpr uint8_t count = 8;
+  uint8_t count = hjMenuCount();
   if (uiCursor >= count) uiCursor = 0;
   if (uiCursor < uiScroll) uiScroll = uiCursor;
   if (uiCursor > uiScroll + 3) uiScroll = uiCursor - 3;
   for (uint8_t row=0; row<4; ++row) {
     uint8_t idx = uiScroll + row;
     if (idx >= count) break;
-    String text = String(idx == uiCursor ? "> " : "  ") + items[idx];
+    String text = String(idx == uiCursor ? "> " : "  ") + items[hjMenuIdAt(idx)];
     oledCentered(13 + row*16, text);
   }
 }
@@ -3770,7 +3794,7 @@ static void uiGoHome() {
 }
 
 static void uiSelectMain() {
-  switch (uiCursor) {
+  switch (hjMenuIdAt(uiCursor)) {
     case 0: clockReturnScreen = UI_MAIN_MENU; uiScreen = UI_CLOCK; break;
     case 1: uiScreen = UI_LIGHTS; break;
     case 2: uiScreen = UI_GAMES; break;
@@ -4168,11 +4192,11 @@ static void serviceInputs() {
       }
     } else if (uiScreen == UI_MAIN_MENU) {
       if (q[IN_UP] && !latched[IN_UP]) {
-        uiCursor=(uiCursor+7)%8;
+        uiCursor=hjMenuIndexNext(uiCursor,-1);
         oledDirty=true;
       }
       if (q[IN_DOWN] && !latched[IN_DOWN]) {
-        uiCursor=(uiCursor+1)%8;
+        uiCursor=hjMenuIndexNext(uiCursor,+1);
         oledDirty=true;
       }
       if (q[IN_A] && !latched[IN_A]) {
@@ -4314,6 +4338,33 @@ static void handleCommand(String line) {
   }
   if(line=="GET STATUS"){Serial.println(statusLine());return;}
   if(line=="GET CAPS"){hjPrintCaps();return;}
+  if(line=="GET MODULES"){
+    Serial.printf("HJ|MODULES|menu_mask=%u|system_locked=1|arcade=1|bloompetz=0|dnd=0|hid=0\\n",(unsigned)hjMenuMask);
+    return;
+  }
+  if(line=="RESET MODULES"){
+    hjMenuMask=HJ_MENU_ALL;
+    prefs.begin("happyjarz", false);
+    prefs.putUChar("menu_mask", hjMenuMask);
+    prefs.end();
+    uiGoHome();ack("RESET MODULES");
+    Serial.printf("HJ|MODULES|menu_mask=%u|system_locked=1|arcade=1|bloompetz=0|dnd=0|hid=0\\n",(unsigned)hjMenuMask);
+    return;
+  }
+  if(line.startsWith("SET MODULES ")){
+    String raw=line.substring(12);raw.trim();
+    if(raw.length()<1||raw.length()>3){err("modules mask must be decimal 0-255");return;}
+    for(size_t i=0;i<raw.length();++i) if(raw[i]<'0'||raw[i]>'9'){err("modules mask must be decimal 0-255");return;}
+    unsigned long n=strtoul(raw.c_str(),nullptr,10);
+    if(n>255){err("modules mask must be decimal 0-255");return;}
+    hjMenuMask=(uint8_t)n|HJ_MENU_SYSTEM_BIT;
+    prefs.begin("happyjarz",false);
+    prefs.putUChar("menu_mask",hjMenuMask);
+    prefs.end();
+    uiGoHome();ack("SET MODULES");
+    Serial.printf("HJ|MODULES|menu_mask=%u|system_locked=1|arcade=1|bloompetz=0|dnd=0|hid=0\\n",(unsigned)hjMenuMask);
+    return;
+  }
   if(line=="GET LED FRAME"){hjEmitLedFrameNow();return;}
   if(line=="STREAM LED ON"){
     hjLedStream=true;

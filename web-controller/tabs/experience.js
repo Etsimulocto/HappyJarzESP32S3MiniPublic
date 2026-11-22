@@ -172,7 +172,7 @@ export function init(ctx){
    if(type==='IDENTITY'){boardId=data.chip||data.serial||'V1';status();}
    if(type!=='EVENT'||!config.bridge||!ctx.identity||ctx.serviceBusy||ctx.transferring||ctx.connecting||ctx.closing||busy)return;
    // Never echo actions from app KEY commands back into the jar. Physical presses only.
-   if(data.source!=='physical' && data.source!=='touch')return;
+   if(data.source==='host')return; // Native firmware physical events omit source; host KEY events say source=host.
    const pad=String(data.input||'').toUpperCase();
    const command=config.bindings[pad]?.kind;
    if(!safeCommands.has(command)||!ctx.deviceControls.has(pad.toLowerCase()))return;

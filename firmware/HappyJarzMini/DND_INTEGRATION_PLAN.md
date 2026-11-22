@@ -1,48 +1,37 @@
-# DND - next isolated module
+# DND hardware-test candidate — 0.18.17
 
-**Status:** Integration branch and source-location tooling only. No DND firmware has been added, built, flashed, or published.
+## Source and status
+- **Source recovered** from Pi, committed to `Etsimulocto/BloomCircuit` branch `archive/bloompetz-dnd-original-2026-11-22` (commit `d6f1deb`).
+- The authoritative engine is `BloomPetz/firmware/bloompetz_v0_1/bloompetz_v0_1.ino`, dated 2026-10-05, 144753 bytes. Original archive was SHA256 checked against Pi backup.
+- `happyjarz_dnd.h` is a **port of the archived game engine and original 48-species/item/equipment/room logic**, not a rewrite. UI, input, save, and lifecycle are adapters.
+- **0.18.17 test candidate is source-only until compiled on Windows. Not flashed, not verified on hardware, not published.** Public 0.18.15 remains stable; 0.18.16 remains the previous pet test candidate.
 
-## Source fidelity and preservation
+## Adapters and boundaries
+- The original 21-character x four-row display uses HAPPY JARZ shared OLED service (U8g2 6x12 font); native 7 HUD + 14 map columns preserved.
+- Six touch/USB KEY actions: UP/DOWN/LEFT/RIGHT/A/B. A then direction within 700ms attacks; B opens original game menu. **START exits DND to HAPPY JARZ menu**, with save.
+- Menu item `DND` is independently show/hide configurable, saved at `happyjarz/dnd_menu`, separate from original 8-bit `menu_mask`. Pet menu is independent too.
+- DND durable state is written to **new namespace `hjdnd`, key `state`** with magic/version/length/FNV checksum; does **not** touch original `bloomsys/state`, current `hjpetz` pet data, profile, or ART SPIFFS. This means automatic migration from original Pi `bloomsys` is deliberately **not implemented**.
+- Original game durable state, 288-inventory capacity, equipment slots, stats, gold, experience, room and depth survive re-entry/reboot; room map and transient enemies regenerate on resume, consistent with original engine.
+- `GET DND MODULE`, `SET DND MODULE ON/OFF`, and `GET MODULES` expose module status. `RESET MODULES` shows DND again without resetting its saved game.
 
-We are porting the original **BloomCircuit/BloomPetz DND** subsystem, not replacing it with a different role-playing game. The verifiable GitHub file `BloomPetz/firmware/bloompetz_v0_1.ino` is an early standalone BloomPetz vertical slice with no DND. The BloomCircuit README describes the *later*, working unified BloomSystem build, but its path `BloomPetz/firmware/bloompetz_v0_1/bloompetz_v0_1.ino` returned 404 via connected GitHub. This is a genuine source gap.
-
-Before writing a functional DND module, locate the **authoritative** latest source on the Pi (or any Windows backup). A read-only search script is in `tools/find_bloompetz_dnd_source_pi.sh`. It does **not** modify any files.
-
-## Required original game mechanics (from BloomCircuit README)
-
-- Physical **21-character** four-row OLED: 7-column HUD + 14-column map; active DND owns display and blocks BloomPetz side-art refresh
-- `@` player, D-pad move, tap A then direction within approx. 700 ms for attack, B opens game menu
-- Eight geometry archetypes, 48 room themes, 48 enemy species, 48 items, 48 symbols
-- Chests, traps, gold, potions, doors and combat; d20-style roll feed
-- Inventory/shop with four offers, rerolled **on room entry**; purchasing deducts gold
-- XP, level, HP/max HP, STR, DEX, AC, weapon progression and HP growth beyond 18
-- Durable DND fields in BloomCircuit `bloomsys/state` unified save with version/checksum; temporary enemies/maps regenerated on load
-- Resume the session across mode changes, checkpoint as documented
-- Returning to HAPPY JARZ menu must preserve lights, clock, ART, arcade, and existing BloomPetz functionality
-
-## Integration boundaries
-
-- Preserve stable published **0.18.15**; preserve unpublished BLOOMPETZ 0.18.16 candidate and all saved NVS / SPIFFS.
-- First develop on `feature/dnd-next-module`, a branch from `feature/bloompetz-first-module`.
-- Obtain the latest, verified BloomCircuit DND code and its save-format declarations **before** porting.
-- Do not silently migrate/overwrite early `hjpetz` PetSave or any existing BloomCircuit `bloomsys/state` data.
-- DND should have a separate optional menu entry/visibility toggle, not be bundled into arcade or forced on customers.
-- Compile under ESP32 Arduino core **3.3.12**; 4MB default application partition max **0x140000 / 1,310,720 bytes**.
-- One test stage at a time: compile → app-only flash → OLED/input → gameplay → persistence → regressions. Publish only after explicit verification.
-
-## Search on Raspberry Pi
-
-From a shell inside the HappyJarz project checkout:
-
-```bash
-bash tools/find_bloompetz_dnd_source_pi.sh
+## Build / validation on Windows PowerShell
+```powershell
+cd "$HOME\Documents\HappyJarzESP32S3MiniPublic"
+git fetch origin
+git switch feature/dnd-next-module
+git pull --ff-only origin feature/dnd-next-module
+.\tools\build_release_windows.ps1
 ```
+Do not use `-InstallDependencies` unless specifically requested: preserve ESP32 Arduino core 3.3.12.
+The builder compiles for 4MB default dual-app layout, fails closed if it exceeds `0x140000`, stages app-only binary and logs at `release-staging/candidate`. No flashing/publishing.
 
-Or run directly on the Pi if the HappyJarz checkout is not available:
+## Test gates
+1. Successful Arduino build with memory headroom; check release-staging candidate checksum.
+2. App-only flash to intended test board (COM port confirmed), **never erase flash** or flash partitions/bootloader.
+3. OLED view, D-pad movement, A+direction attack, B menu, START exit.
+4. Inventory, shop, progression, random rooms, enemies and autosaves.
+5. Power cycle, resume persistent DND state, verify existing BloomPetz pet, ART, settings, profiles, lights, arcade.
+6. Only after physical verification consider Web Studio controls and publishing.
 
-```bash
-find ~/BloomCircuit -type f \( -name '*.ino' -o -name '*.cpp' -o -name '*.h' \) -printf '%TY-%Tm-%Td %TH:%TM %s %p\n' | sort -r | head -80
-```
-
-Inspect matching file names and modified dates; avoid confusing the documented later implementation with the older 2026 BloomPetz-only source. A filename alone is not proof a file has the current DND logic.
-
+## Caveat
+The original game engine was ported with limited interface edits, but **the new integration has not yet been compiled or physically validated**. Fix compilation/regressions on this feature branch; do not modify stable release until proven.

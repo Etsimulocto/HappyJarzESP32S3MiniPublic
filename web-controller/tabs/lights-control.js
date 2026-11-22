@@ -56,8 +56,15 @@ function hostKeyboardAllowed(){const target=document.activeElement;return hostGa
 window.addEventListener('keydown',event=>{const key=keyboardKeys[event.key] || keyboardKeys[event.key.toLowerCase()];if(!key || event.repeat || event.ctrlKey || event.metaKey || event.altKey || !hostKeyboardAllowed() || !ctx.identity || !ctx.deviceControls.has(key))return;event.preventDefault();void sendHostKey(key).catch(error=>message(error.message,'error'));});
 let previousGamepadKeys=new Set(),lastGamepad='';
 function pollGamepad(){
-  let pad;try{pad=Array.from(navigator.getGamepads?.() || []).find(p=>p?.connected);}catch(error){$('gamepad-state').textContent='Gamepad access unavailable in this browser.';log(error.message,'warn','GAMEPAD');return;}
-  const label=pad ? `${pad.id} · ${pad.mapping==='standard'?'standard mapping':'mapping unsupported'}` : 'No gamepad detected · press a controller button to discover it';
+  let pad;try{pad=Array.from(navigator.getGamepads?.() || []).find(p=>p?.connected);}catch(error){
+    $('gamepad-state').textContent='Gamepad access temporarily unavailable: '+error.message;
+    log(error.message,'warn','GAMEPAD');
+    previousGamepadKeys=new Set();requestAnimationFrame(pollGamepad);return;
+  }
+  const forwarding=hostGamepadAllowed();
+  const label=pad
+    ? `${pad.id} · ${pad.mapping==='standard'?'standard mapping':'mapping unsupported'} · ${forwarding?'forwarding ON':'forwarding OFF (enable checkbox, connect jar, focus Studio)'}`
+    : 'No gamepad detected · press a controller button to discover it';
   if(label!==lastGamepad){$('gamepad-state').textContent=label;lastGamepad=label;}
   const keys=gamepadKeys(pad);
   if(hostGamepadAllowed())for(const key of keys)if(!previousGamepadKeys.has(key))void sendHostKey(key).catch(error=>message(error.message,'error'));

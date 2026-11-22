@@ -1,6 +1,25 @@
 {
-  "schema": 1,
-  "channel": "stable",
-  "status": "not-published",
-  "releases": []
+    "schema":  1,
+    "channel":  "stable",
+    "status":  "published",
+    "releases":  [
+                     {
+                         "channel":  "stable",
+                         "model":  "happyjarz-supermini-simple-4mb",
+                         "hw":  "V1",
+                         "chip":  "ESP32-S3",
+                         "layout":  "arduino-4mb-default-app-0x10000-0x140000",
+                         "flashSize":  4194304,
+                         "version":  "0.18.14",
+                         "images":  [
+                                        {
+                                            "url":  "./releases/happyjarz-0.18.14-app.bin",
+                                            "address":  65536,
+                                            "size":  1118144,
+                                            "sha256":  "a92108a7acd697e761c9859d0a8b77f5a6eef2526fd19ff872b10fa251ddb712"
+                                        }
+                                    ]
+                     }
+                 ]
 }
+

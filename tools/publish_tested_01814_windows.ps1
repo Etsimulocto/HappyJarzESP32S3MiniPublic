@@ -50,7 +50,7 @@ $json = [System.IO.File]::ReadAllText($catalogPath).TrimStart([char]0xFEFF)
 [System.IO.File]::WriteAllText($catalogPath, $json + [Environment]::NewLine, (New-Object System.Text.UTF8Encoding($false)))
 $published = (Get-FileHash $target -Algorithm SHA256).Hash.ToLowerInvariant()
 if ($published -ne $expected) { throw 'STOP: copied file changed unexpectedly.' }
-Write-Host "STAGED APPROVED RELEASE $version — $bytes bytes, SHA-256 $published" -ForegroundColor Green
+Write-Host "STAGED APPROVED RELEASE $version - $bytes bytes, SHA-256 $published" -ForegroundColor Green
 Write-Host 'Git files: web-controller/releases.json and web-controller/releases/happyjarz-0.18.14-app.bin'
 if ($Push) {
   & git add -- 'web-controller/releases.json' 'web-controller/releases/happyjarz-0.18.14-app.bin'

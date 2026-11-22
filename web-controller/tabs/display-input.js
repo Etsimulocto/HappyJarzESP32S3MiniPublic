@@ -1,5 +1,5 @@
 import { PAD_BINDINGS } from '../lights.mjs';
-const MODES=['SAYINGS','SPIRAL','TRIPPY','PARTICLES','BLOOM','BREATHE','GLITTER','ART'];
+const MODES=['SAYINGS','SPIRAL','TRIPPY','PARTICLES','BLOOM','BREATHE','GLITTER','ART','BIG CLOCK'];
 const SOURCES=['BUILTIN','CUSTOM','MIXED'];
 const PADS=Object.keys(PAD_BINDINGS);
 export function init(ctx) {

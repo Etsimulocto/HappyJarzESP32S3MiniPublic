@@ -1,0 +1,56 @@
+name: Build HAPPY JARZ 0.18.15 candidate
+
+on:
+  push:
+    branches:
+      - feature/mini-art-gallery-animation
+    paths:
+      - 'firmware/HappyJarzMini/**'
+      - 'firmware/VERSION'
+      - '.github/workflows/build-firmware-candidate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compile-candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Arduino CLI
+        uses: arduino/setup-arduino-cli@v2
+      - name: Install pinned toolchain
+        run: |
+          arduino-cli core update-index --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core install esp32:esp32@3.3.12 --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli lib install U8g2
+      - name: Verify version and compile
+        run: |
+          set -eu
+          test "$(cat firmware/VERSION | tr -d '\r\n')" = "0.18.15"
+          grep -q 'HJ_FW_VERSION = "0.18.15"' firmware/HappyJarzMini/HappyJarzMini.ino
+          mkdir -p release-staging/ci-build
+          arduino-cli compile --fqbn "esp32:esp32:esp32s3:FlashSize=4M,PartitionScheme=default,PSRAM=disabled,CDCOnBoot=cdc" --output-dir release-staging/ci-build firmware/HappyJarzMini
+      - name: Verify app-only image and document build
+        run: |
+          set -eu
+          test -f release-staging/ci-build/HappyJarzMini.ino.bin
+          python3 - <<'PY'
+          import pathlib,hashlib
+          p=pathlib.Path('release-staging/ci-build/HappyJarzMini.ino.bin')
+          size=p.stat().st_size
+          print('candidate size=',size,'bytes')
+          print('candidate sha256=',hashlib.sha256(p.read_bytes()).hexdigest())
+          if size > 0x140000: raise SystemExit('FATAL: candidate larger than application partition')
+          PY
+      - name: Upload candidate for review - NOT public release
+        uses: actions/upload-artifact@v4
+        with:
+          name: happyjarz-0.18.15-unreleased-candidate
+          path: |
+            release-staging/ci-build/HappyJarzMini.ino.bin
+            release-staging/ci-build/HappyJarzMini.ino.partitions.bin
+          if-no-files-found: error
+          retention-days: 14

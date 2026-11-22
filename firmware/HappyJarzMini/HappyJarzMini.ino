@@ -1,4 +1,4 @@
-// HAPPY JARZ ESP32-S3 SuperMini firmware v0.18.14
+// HAPPY JARZ ESP32-S3 SuperMini firmware v0.18.16 (BLOOMPETZ CANDIDATE)
 // SIMPLE profile: nine capacitive inputs, 128x64 OLED, four APA106 lamps,
 // local games/screensavers, and the HAPPY JARZ USB control protocol.
 //
@@ -4364,13 +4364,13 @@ static void handleCommand(String line) {
   if(line=="GET PET STATUS"){
     HJPet::load();
     const auto &pet=HJPet::pets[HJPet::slot];
-    Serial.printf("HJ|PET|slot=%u|occupied=%u|name=%s|energy=%.1f|actions=%u|treats=%u\\n",HJPet::slot+1,pet.occupied?1:0,pet.name,pet.foodEnergy,pet.dailyActionMask,pet.treatsToday);
+    Serial.printf("HJ|PET|slot=%u|occupied=%u|name=%s|energy=%.1f|actions=%u|treats=%u\n",HJPet::slot+1,pet.occupied?1:0,pet.name,pet.foodEnergy,pet.dailyActionMask,pet.treatsToday);
     return;
   }
   if(line=="GET STATUS"){Serial.println(statusLine());return;}
   if(line=="GET CAPS"){hjPrintCaps();return;}
   if(line=="GET PET MODULE"){
-    Serial.printf("HJ|PETMODULE|installed=1|visible=%u|slots=3|stats=200|dnd=0\\n",hjPetVisible?1:0);
+    Serial.printf("HJ|PETMODULE|installed=1|visible=%u|slots=3|stats=200|dnd=0\n",hjPetVisible?1:0);
     return;
   }
   if(line=="SET PET MODULE ON"||line=="SET PET MODULE OFF"){

@@ -23,12 +23,27 @@ export const PRESETS={
 export const ACTIONS=[
  ['NONE','Unassigned'],['SAVER NEXT','Next screensaver'],['SAVER PREV','Previous screensaver'],
  ['SAVER ENTER','Start screensaver'],['SAVER EXIT','Exit screensaver'],
- ['SAVER RESEED','New screensaver variation'],['SAVE','Save jar settings'],
- ['KEYBOARD','Keyboard key / shortcut (future USB HID)'],
- ['GAMEPAD','Gamepad button (future USB HID)'],
+ ['SAVER RESEED','New screensaver variation'],['SAVER SPEED UP','Screensaver faster'],['SAVER SPEED DOWN','Screensaver slower'],['SAVE','Save jar settings'],['SET PATTERN','LED pattern'],['SET BRIGHTNESS','Brightness percent'],
+ ['KEYBOARD','Keyboard key (future native HID/bridge)'],['MOUSE','Mouse button (future native HID/bridge)'],
+ ['GAMEPAD','Gamepad output (future native HID/bridge)'],
  ['MIDI','MIDI note / control (future USB MIDI)']
 ];
-const DEFAULT_BINDINGS=Object.fromEntries(PADS.map(([name])=>[name,{kind:'NONE',value:''}]));
+const SLOTS=4;
+export const ARGUMENTS={
+ 'SET PATTERN':['SOLID','FADE','PULSE','RAINBOW','RANDOM','BREATH','AURORA','OCEAN','LAVENDER','SUNSET','GALAXY','FIRE','ICE','FOREST','NEON','ARCADE','OFF'],
+ 'SET BRIGHTNESS':Array.from({length:11},(_,i)=>String(i*5)),
+ 'KEYBOARD':['Ctrl','Shift','Alt','Space','Enter','Escape','Tab','Backspace','Arrow Up','Arrow Down','Arrow Left','Arrow Right',...'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'.split(''),'F1','F2','F3','F4','F5','F6','F7','F8','F9','F10','F11','F12'],
+ 'MOUSE':['Left click','Right click','Middle click','Back','Forward','Scroll up','Scroll down'],
+ 'GAMEPAD':['A','B','X','Y','LB','RB','LT','RT','Back','Start','Guide','D-pad Up','D-pad Down','D-pad Left','D-pad Right','Left Stick Click','Right Stick Click','Left Axis Up','Left Axis Down','Left Axis Left','Left Axis Right','Right Axis Up','Right Axis Down','Right Axis Left','Right Axis Right'],
+ 'MIDI':['Note C3','Note D3','Note E3','Note F3','Note G3','Note A3','Note B3','CC 1','CC 7','CC 10','CC 64','Transport Play','Transport Stop']
+};
+const DEFAULT_SLOT=()=>({kind:'NONE',value:''});
+const DEFAULT_BINDINGS=Object.fromEntries(PADS.map(([name])=>[name,Array.from({length:SLOTS},DEFAULT_SLOT)]));
+function cleanSlot(x){
+ const kind=ACTION_SET.has(x?.kind)?x.kind:'NONE';
+ const choices=ARGUMENTS[kind]||[];
+ return {kind,value:choices.includes(x?.value)?x.value:choices[0]||''};
+}
 export const DEFAULT_CONFIG={
  preset:'classic',features:[...PRESETS.classic],home:'home',simple:false,
  bridge:false,bindings:DEFAULT_BINDINGS
@@ -46,10 +61,8 @@ export function validateConfig(input){
  clean.home=['home','display','art','setup','profile'].includes(input?.home)?input.home:'home';
  clean.bindings={};
  for(const [name] of PADS){
-  const b=input?.bindings?.[name]||{};
-  const kind=ACTION_SET.has(b.kind)?b.kind:'NONE';
-  const value=typeof b.value==='string'?b.value.trim().slice(0,64):'';
-  clean.bindings[name]={kind,value};
+  const source=input?.bindings?.[name];const slots=Array.isArray(source)?source:[source||{}];
+  clean.bindings[name]=Array.from({length:SLOTS},(_,i)=>cleanSlot(slots[i]||{}));
  }
  return clean;
 }
@@ -258,8 +271,8 @@ export function init(ctx){
    ' '+(boardId?'Connected jar: '+boardId+'.':'Not connected.')+
    ' These preferences do not remove firmware modules or change the jar OLED menu.';
   bindingState.textContent=config.bridge
-   ?'Live jar shortcuts ON (requires connected Web Studio). Keyboard/gamepad/MIDI assignments are saved plans, not active OS outputs.'
-   :'Live jar shortcuts OFF. Nothing is sent from physical touch events by this mapper.';
+   ?'Mapping active: four action slots run in order for each physical press. Keyboard/mouse/gamepad/MIDI output entries are saved plans, not system events.'
+    :'Mapped shortcuts OFF. Copper buttons keep their original firmware behavior.';
  }
  function render(){
   $('experience-preset').value=config.preset;
@@ -267,8 +280,9 @@ export function init(ctx){
   $('experience-bridge').checked=config.bridge;
   $('experience-start').value=config.home;
   for(const [id,input] of featureInputs)input.checked=config.features.includes(id);
-  for(const [name,obj] of padInputs){obj.kind.value=config.bindings[name].kind;obj.value.value=config.bindings[name].value;
-   obj.value.disabled=!['KEYBOARD','GAMEPAD','MIDI'].includes(obj.kind.value);
+  for(const [name,rows] of padInputs)for(let i=0;i<SLOTS;i++){
+   const entry=config.bindings[name][i],obj=rows[i];obj.kind.value=entry.kind;
+   populateArgs(obj.value,entry.kind,entry.value);
   }
   applyVisibility();status();updateStorage();updateDeviceMenu();
  }
@@ -284,18 +298,27 @@ export function init(ctx){
   featureNotes.set(id,note);
   row.append(check,title,note);$('experience-features').append(row);featureInputs.set(id,check);
  }
+ function populateArgs(select,kind,selected){
+  select.replaceChildren();const list=ARGUMENTS[kind]||[];
+  if(!list.length){select.add(new Option('— no argument —',''));select.disabled=true;return;}
+  for(const value of list)select.add(new Option(value,value));
+  select.value=list.includes(selected)?selected:list[0];select.disabled=false;
+ }
  for(const [name,pin] of PADS){
-  const row=document.createElement('div');row.className='mapping-row';
-  const tag=document.createElement('strong');tag.textContent=name+' · GPIO'+pin;
-  const select=document.createElement('select');select.setAttribute('aria-label',name+' action');
-  for(const [id,title] of ACTIONS)select.add(new Option(title,id));
-  const input=document.createElement('input');input.maxLength=64;input.placeholder='e.g. Ctrl+Z, Space, CC 7';input.setAttribute('aria-label',name+' key or MIDI mapping');
-  const update=()=>{
-   config.bindings[name]={kind:select.value,value:input.value};
-   save();render();
-  };
-  select.onchange=update;input.onchange=update;
-  row.append(tag,select,input);$('mapping-grid').append(row);padInputs.set(name,{kind:select,value:input});
+  const group=document.createElement('div');group.className='mapping-group';
+  const label=document.createElement('strong');label.textContent=name+' · GPIO'+pin;group.append(label);
+  const slots=[];
+  for(let i=0;i<SLOTS;i++){
+   const row=document.createElement('div');row.className='mapping-row';
+   const n=document.createElement('span');n.textContent='SLOT '+(i+1);
+   const kind=document.createElement('select');kind.setAttribute('aria-label',name+' slot '+(i+1)+' action');
+   for(const [id,title] of ACTIONS)kind.add(new Option(title,id));
+   const value=document.createElement('select');value.setAttribute('aria-label',name+' slot '+(i+1)+' argument');
+   const change=()=>{config.bindings[name][i]=cleanSlot({kind:kind.value,value:value.value});save();render();};
+   kind.onchange=()=>{populateArgs(value,kind.value,'');change();};value.onchange=change;
+   row.append(n,kind,value);group.append(row);slots.push({kind,value});
+  }
+  $('mapping-grid').append(group);padInputs.set(name,slots);
  }
  $('experience-preset').add(new Option('Custom','custom'));
  for(const id of Object.keys(PRESETS))$('experience-preset').add(new Option(id==='display'?'Business display':id==='pet'?'Pet only':id==='dnd'?'DND player':id==='maker'?'Everything / Maker':'Factory Classic',id));
@@ -344,12 +367,13 @@ export function init(ctx){
  $('mapping-preset').onchange=()=>{
   const value=$('mapping-preset').value;
   if(!quickProfiles[value])return;
-  config.bindings=Object.fromEntries(PADS.map(([n])=>{const [kind,v]=quickProfiles[value][n];return [n,{kind,value:v}];}));
-  save();render();message('Mapping preset saved in browser. Future HID/MIDI mappings are not active yet.');
+  config.bindings=Object.fromEntries(PADS.map(([n])=>{const [kind,v]=quickProfiles[value][n];return [n,[cleanSlot({kind,value:v}),...Array.from({length:SLOTS-1},DEFAULT_SLOT)]];}));
+  save();render();message('Four-slot profile saved. HID, mouse and MIDI require a future native bridge.');
  };
  render();
  if(!config.simple||config.features.includes(config.home))document.querySelector('[data-tab="'+config.home+'"]')?.click();
- const safeCommands=new Set(['SAVER NEXT','SAVER PREV','SAVER ENTER','SAVER EXIT','SAVER RESEED','SAVE']);
+ const safeCommands=new Set(['SAVER NEXT','SAVER PREV','SAVER ENTER','SAVER EXIT','SAVER RESEED','SAVER SPEED UP','SAVER SPEED DOWN','SAVE','SET PATTERN','SET BRIGHTNESS']);
+ const commandFor=slot=>safeCommands.has(slot.kind)?(['SET PATTERN','SET BRIGHTNESS'].includes(slot.kind)?slot.kind+' '+slot.value:slot.kind):null;
  return {
   receive({type,data}){
    if(type==='IDENTITY'){boardId=data.chip||data.serial||'V1';firmwareVersion=data.fw||null;deviceMenuKnown=false;petModuleKnown=false;dndModuleKnown=false;moduleReport=null;status();updateStorage();updateDeviceMenu();}
@@ -360,12 +384,14 @@ export function init(ctx){
    // Never echo actions from app KEY commands back into the jar. Physical presses only.
    if(data.source==='host')return; // Native firmware physical events omit source; host KEY events say source=host.
    const pad=String(data.input||'').toUpperCase();
-   const command=config.bindings[pad]?.kind;
-   if(!safeCommands.has(command)||!ctx.deviceControls.has(pad.toLowerCase()))return;
+   const commands=(config.bindings[pad]||[]).map(commandFor).filter(Boolean);
+   if(!commands.length||!ctx.deviceControls.has(pad.toLowerCase()))return;
    const now=performance.now();if(now-lastEventAt<220)return;lastEventAt=now;busy=true;
-   ack(command).then(()=>{bindingState.textContent='Last live action: '+pad+' -> '+command+' (jar acknowledged).';})
-    .catch(error=>{log('Mapped input failed: '+error.message,'warn','EXPERIENCE');})
-    .finally(()=>{busy=false;});
+   (async()=>{for(const command of commands){
+    const response=command.startsWith('SET PATTERN ')?'SET PATTERN':command.startsWith('SET BRIGHTNESS ')?'SET BRIGHTNESS':command;
+    await ack(command,response);
+   }bindingState.textContent='Last mapped input: '+pad+' -> '+commands.join(' → ')+' (acknowledged).';})()
+    .catch(error=>log('Mapped input failed: '+error.message,'warn','EXPERIENCE')).finally(()=>{busy=false;});
   },
   reset(){boardId=null;firmwareVersion=null;artCount=null;deviceMenuKnown=false;petModuleKnown=false;dndModuleKnown=false;moduleReport=null;status();updateStorage();updateDeviceMenu();},
   onShow(){status();updateStorage();updateDeviceMenu();},

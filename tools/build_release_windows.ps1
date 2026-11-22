@@ -47,8 +47,35 @@ $fqbn = "esp32:esp32:esp32s3:FlashSize=4M,PartitionScheme=default,PSRAM=disabled
 & arduino-cli core list | Out-File -FilePath (Join-Path $out 'toolchain-cores.txt')
 & arduino-cli lib list | Out-File -FilePath (Join-Path $out 'toolchain-libraries.txt')
 Write-Host "Building candidate $Version with $fqbn" -ForegroundColor Cyan
-& arduino-cli compile --fqbn $fqbn --output-dir $build $sketch
-if ($LASTEXITCODE -ne 0) { throw "Compilation failed. No release staged." }
+Write-Host "Progress is an activity heartbeat, NOT a percent estimate." -ForegroundColor DarkGray
+$compileOut = Join-Path $out "compile-stdout.log"
+$compileErr = Join-Path $out "compile-stderr.log"
+# Keep the UI responsive even if Arduino CLI is silent while compiling.
+$cliExe = (Get-Command arduino-cli -ErrorAction Stop).Source
+$cliArgs = @("compile", "--fqbn", $fqbn, "--output-dir", $build, $sketch)
+$buildTimer = [System.Diagnostics.Stopwatch]::StartNew()
+$compiler = Start-Process -FilePath $cliExe -ArgumentList $cliArgs -PassThru -NoNewWindow -RedirectStandardOutput $compileOut -RedirectStandardError $compileErr
+try {
+    while (-not $compiler.HasExited) {
+        Start-Sleep -Seconds 2
+        $compiler.Refresh()
+        $elapsed = $buildTimer.Elapsed.ToString("mm\:ss")
+        Write-Host ("[BUILD] {0} elapsed - Arduino compiler active..." -f $elapsed) -ForegroundColor DarkCyan
+    }
+    $compiler.WaitForExit()
+    $exitCode = $compiler.ExitCode
+} finally {
+    $buildTimer.Stop()
+    $compiler.Dispose()
+}
+if (Test-Path $compileOut) { Get-Content $compileOut | ForEach-Object { Write-Host $_ } }
+if (Test-Path $compileErr) { Get-Content $compileErr | ForEach-Object { Write-Host $_ -ForegroundColor Yellow } }
+if ($exitCode -ne 0) {
+    Write-Host "Compiler exit code: $exitCode" -ForegroundColor Red
+    Write-Host "Diagnostics saved: $compileOut and $compileErr" -ForegroundColor Yellow
+    throw "Compilation failed. No release staged."
+}
+Write-Host ("[BUILD] Compile completed in {0}." -f $buildTimer.Elapsed.ToString("mm\:ss")) -ForegroundColor Green
 
 $app = @(Get-ChildItem -Path $build -File -Filter "*.bin" | Where-Object {
     $_.Name -match "^HappyJarzMini(\.ino)?\.bin$"

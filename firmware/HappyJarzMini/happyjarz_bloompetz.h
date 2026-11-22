@@ -29,7 +29,7 @@ struct PetSave {
 static PetSave pets[SLOTS];
 static uint8_t slot=0,action=0,menu=0,statIndex=0,seq[3]={},seqIndex=0;
 static bool active=false, loaded=false;
-enum Mode:uint8_t {HOME,MENU,STATS_VIEW,WATCH,INPUT,RESULT,CONFIRM_CREATE};
+enum Mode:uint8_t {HOME,MENU,STATS_VIEW,WATCH,PET_INPUT,RESULT,CONFIRM_CREATE};
 static Mode mode=HOME;
 static String lines[4];
 static uint8_t watchIndex=0;
@@ -123,7 +123,7 @@ static void draw(){
     line(1,"WATCH THE PATTERN");
     line(2,watchIndex<3?String(dirs[seq[watchIndex]])+" "+String(watchIndex+1)+"/3":"READY");
     line(3,"B CANCEL");
-  }else if(mode==INPUT){
+  }else if(mode==PET_INPUT){
     line(0,String(p.name)+" "+names[action]);
     line(1,"YOUR TURN");
     line(2,String(seqIndex)+"/3 MATCHED");
@@ -187,7 +187,7 @@ static void service(){
   if(millis()-lastDay>30000){lastDay=millis();daily();}
   if(mode==WATCH&&millis()-watchAt>=600){
     watchAt=millis();watchIndex++;
-    if(watchIndex>=3){mode=INPUT;seqIndex=0;responseStart=millis();}
+    if(watchIndex>=3){mode=PET_INPUT;seqIndex=0;responseStart=millis();}
     draw();
   }
 }
@@ -206,7 +206,7 @@ static void button(uint8_t b){// 0 up, 1 down, 2 left, 3 right, 4 A, 5 B
   }
   p.lifetimeTouches++;
   if(mode==WATCH){if(b==5){mode=HOME;draw();}return;}
-  if(mode==INPUT){
+  if(mode==PET_INPUT){
     if(b==5){mode=HOME;draw();return;}
     if(b>=4)return;
     if(b!=seq[seqIndex]){

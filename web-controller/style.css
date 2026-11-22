@@ -52,3 +52,17 @@
 .mapping-row select,.mapping-row input{min-width:0;width:100%}
 nav [data-tab][hidden]{display:none!important}
 @media(max-width:690px){.mapping-row{grid-template-columns:1fr 1fr}.mapping-row strong{grid-column:1/-1}.experience-choice{align-items:start;flex-wrap:wrap}}
+
+
+/* Storage accounting: exact app binary vs. slot occupancy; no fabricated per-module bytes. */
+.experience-storage{border:1px solid var(--line);border-radius:12px;padding:16px;margin:12px 0 22px;background:#10151e}
+.experience-storage-head{display:flex;gap:12px;justify-content:space-between;align-items:baseline;flex-wrap:wrap;margin:10px 0 6px}
+.experience-storage-head strong{font-size:13px}
+.experience-storage-head output{font:12px/1.5 ui-monospace,monospace;color:var(--mint)}
+.experience-meter{height:16px;border:1px solid var(--line);border-radius:999px;overflow:hidden;background:#242431}
+.experience-meter span{display:block;height:100%;background:linear-gradient(90deg,#34bfa7,#6de0bf);transition:width .2s ease}
+.experience-meter.art-meter span{background:linear-gradient(90deg,#d477d2,#ff9dcf)}
+.experience-storage .help{font-size:12px;margin:7px 0 14px;line-height:1.55}
+.experience-choice{flex-wrap:wrap;gap:7px 9px}
+.experience-choice span{flex:1 1 110px}
+.experience-choice small{flex:1 0 100%;max-width:none;padding-left:23px;white-space:normal;line-height:1.4}

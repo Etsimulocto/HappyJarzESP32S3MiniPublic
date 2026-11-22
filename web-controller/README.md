@@ -1,4 +1,61 @@
-# HAPPY JARZ Web Studio — draft 0.13
+# HAPPY JARZ Web Studio — development branch
+
+## November 22, 2026 — optional automatic USB Serial/JTAG reconnection
+
+- Web Studio can now **auto-reconnect** to exactly one **previously browser-authorized** ESP32-S3 native USB Serial/JTAG port (USB VID `0x303A`, PID `0x1001`) using `navigator.serial.getPorts()`. It never auto-opens generic COM3/COM4 or an unknown USB-to-UART converter. Native USB device descriptors identify interface type, not a unique physical jar; protocol handshake checks HAPPY JARZ V1 firmware before starting telemetry. When multiple matching authorized ports are present, the user chooses manually instead.
+- **First connection still requires one user click on Connect jar and selection in Edge/Chrome's permission dialog.** Browsers do not allow silently granting USB serial permissions, and Windows COM5 is not exposed as a portable web device name.
+- Header keeps **Connect jar** and **Disconnect**, alongside an **Auto reconnect** checkbox (enabled by default, locally saved as `happyjarz-auto-connect`). Manual Disconnect suppresses reconnect for that page session; manual Connect enables it again. Unchecking Auto reconnect disables automatic connection. Re-enumeration attempts use browser `connect` notifications.
+- Only changes Web Studio code: **no firmware rebuild/flash, no published site update**. Requires local `http://localhost:8000` testing with the board already paired, reload, manual disconnect, and reconnect/USB unplug. Also validate the first-time chooser and mismatch/multiple-device behavior. Test script for JavaScript syntax passed; live browser hardware behavior remains unverified.
+
+
+## November 22, 2026 — mapper restore defaults + labeling
+
+- Added a separate **Restore default button mappings** button above the nine-pad mapping grid; confirmation required. It resets all **36 slots** (9 GPIO inputs × 4 slots) to unassigned and turns off browser mapped commands, **without** resetting the Experience Manager layout or changing firmware, NVS, artwork, saved games or OLED menu.
+- Corrected dropdown labels to distinguish **working device commands** from **saved-only keyboard, mouse, virtual gamepad and MIDI output assignments**. Existing Xbox/keyboard-to-Jar input forwarding on the Lights + Control panel is a separate working feature; this mapping UI does not create OS keyboard/mouse/controller output.
+- Saved-only quick presets explicitly say so, rather than suggesting they execute on the desktop. Original browser mapping data migration remains supported.
+- Checked JavaScript parse, 9×4 defaults, legacy single-slot migration, and matching DOM IDs. Physical test of reset button remains pending. This is browser-only; **no ESP32 flash**.
+
+
+## November 22, 2026 — four-slot button mapper (local Web Studio test)
+
+- Nine physical GPIO inputs: UP 4, DOWN 5, LEFT 9, RIGHT 10, A 1, B 2, L 11, R 12, START 13. Each has **four editable slots** with action and argument dropdowns; old one-slot browser configurations automatically load in slot 1. Existing browser JSON export/import remains supported.
+- **Executable Web Serial commands**, opt-in via `Enable mapped button commands`: SAVER NEXT/PREV/ENTER/EXIT/RESEED/SPEED UP/SPEED DOWN, SAVE, SET PATTERN (allowed named patterns), SET BRIGHTNESS (0–50 in steps of 5). Commands are dispatched **sequentially, awaiting ACK** from the board. This is an additive mapper: original physical firmware/game controls are not overridden.
+- **Planning-only dropdown categories:** KEYBOARD (including modifiers/arrows/function keys), MOUSE, GAMEPAD (D-pad/sticks/axes/buttons) and MIDI. Browser Web Serial cannot create native system-wide keyboard, mouse, MIDI or virtual gamepad events; these entries deliberately **do not execute**. Implementing actual OS outputs requires a separate native bridge or new compatible USB HID/MIDI firmware. No claim of HID functionality.
+- Control mapper stores only browser preferences under existing `happyjarz-experience-v1` key. No new device NVS keys or flashing. Do not mistake the Experience Manager's browser checkbox for on-device GPIO remapping or firmware module installation.
+- Basic syntax checks and `validateConfig` migration/argument checks passed. Physical browser interaction with multi-slot command sequences is **not yet verified** and must be tested locally before website publication.
+
+
+## November 22, 2026 — Experience Manager/UI cleanup (development branch)
+
+- Browser Experience feature cards now distinguish **installed-on-jar firmware** from **browser-only visibility**. BLOOMPETZ 0.18.16+ and DND 0.18.17+ are recognized; native USB HID/MIDI remains unimplemented and is distinct from browser Xbox controller forwarding. Hiding a section still frees **0 KiB** of flashed firmware.
+- Added **Read/Show/Hide DND** controls using exact `GET DND MODULE` and `SET DND MODULE ON/OFF` firmware commands and acknowledgement checks, separate from original 8-bit OLED menu mask. Existing BLOOMPETZ module controls remain; `RESET MODULES` restores factory menu visibility without deleting saves.
+- Storage summary now shows measured **0.18.17 sketch size of 1,169,301 bytes** against the 1,310,720-byte app slot; other unmeasured versions remain explicitly unknown. Artwork occupancy is not falsely represented as actual free SPIFFS bytes.
+- Newer experimental installed builds get explicit updater wording: **0.18.17 installed vs latest approved 0.18.15** is expected, downgrade disabled. **No 0.18.17 release published** and no updater safety guard relaxed.
+- First-time setup is collapsed until opened. Old instructions describing DND as nonexistent and Start as unused were corrected. This is a **Web Studio-only patch**; no ESP32 reflash.
+- Source JavaScript syntax for `web-controller/tabs/experience.js` was checked. Browser/USB interaction and regression tests still require a local run before any public deployment.
+
+
+## November 22, 2026 — BLOOMPETZ + DND hardware-test handoff (latest)
+
+**Build/source branch:** `feature/dnd-next-module`, `firmware/VERSION = 0.18.17`. **Published stable:** 0.18.15 on the public Web Studio release catalog; **0.18.16** was the first BLOOMPETZ test candidate, not a public release. Earlier 0.18.14 and 0.18.15 notes below are historical snapshots, not the current development status.
+
+- **Verified on Board #3:** Windows Arduino ESP32 core 3.3.12 successfully compiled 0.18.17: **1,169,301 bytes (89% of 1,310,720 app limit)** and 58,344 bytes global RAM (17%). Default **4 MB dual-app partition map verified**. Candidate staged at `release-staging/candidate/happyjarz-0.18.17-app.bin`, SHA-256 **`3789820a0362a1799ee81531c5045735e5531cd63130fbef386a5ae8c8e26593`**. User's COM5 `esptool` log verified a **1,169,456-byte app-only flash at 0x10000**; no full-flash erase or partition reflash. User confirmed **DND gameplay works on hardware**, including the DND controls tested during the session. Detailed gameplay/save/reboot regression results were not provided; do not claim every path is certified.
+- **Original source recovered and preserved:** Raspberry Pi `~/BloomCircuit/BloomPetz/firmware/bloompetz_v0_1/bloompetz_v0_1.ino` (144,753 bytes), verified SHA-256 **`110bbb5b17b4912364fe05f2824e755d2a29209a8d3d1af25449012b8733602d`** against a second Pi copy. Archived with nine historical `.pre_*` snapshots and the LED header: `Etsimulocto/BloomCircuit`, branch `archive/bloompetz-dnd-original-2026-11-22`, commit `d6f1deb`. Archive is deliberately **not** merged into BloomCircuit main. Other uncommitted Pi files were not staged or modified.
+- **DND integration:** `firmware/HappyJarzMini/happyjarz_dnd.h` ports the original dungeon engine, 48 enemy species, extended equipment/item catalog, rooms, combat, shops, and inventory to HAPPY JARZ's shared 128x64 OLED (7-column HUD + 14-column view over four rows). D-pad moves; tap A then direction attacks; B opens menu; START exits back to HAPPY JARZ. DND has a separate menu visibility toggle and saves in **`hjdnd/state`**, isolated from **`hjpetz`**, **`bloomsys/state`**, existing `happyjarz` settings, and ART SPIFFS. **No original BloomCircuit save migration.**
+- **Web Studio gamepad repair:** Xbox 360 pad `VID_045E PID_028E` enumerated normally on Windows and its buttons worked in the OS test. The Studio's browser-side gamepad relay had been limited to the **Lights + Control** tab and an opt-in checkbox; updated `web-controller/tabs/lights-control.js` to forward gamepad presses on **any tab** when the jar is connected, `Enable computer keyboard + USB gamepad` is checked and the Studio has focus. Keyboard shortcuts still work only on Lights + Control and pause while typing. The status label reports whether gamepad forwarding is ON/OFF. User confirmed **the local Web Studio/gamepad fix works**. No firmware reflash needed for this web-only fix. The **Pi desktop app's separate gamepad handler has not yet been fixed or re-tested**.
+- **Local PC test server:** Windows PowerShell at `C:\Users\quart\Documents\HappyJarzESP32S3MiniPublic`: `py -3 -m http.server 8000 --directory .\web-controller`, then open `http://localhost:8000` in Edge; keep server open, connect the jar, enable host controls. This local test does **not** publish the changed Web Studio files to `jarz.spiralside.com`.
+- **Preservation:** Never erase the device flash, NVS, or SPIFFS; use the verified app-only `0x10000` workflow. Verify the actual COM port after USB reconnect. The board may need an unplug/replug to recover USB enumeration after reset/flash; simply compiling on the PC does not reset it. Keep Pi Board #4 experiments and unrelated Git changes untouched. Firmware 0.18.17 is **physically tested but unpublished**; the production browser updater and complete persistence regression remain separate gates.
+
+### Windows development commands (do not flash automatically)
+
+```powershell
+cd "$HOME\Documents\HappyJarzESP32S3MiniPublic"
+git switch feature/dnd-next-module
+git pull --ff-only origin feature/dnd-next-module
+.\tools\build_release_windows.ps1
+```
+
+
 
 ## November 22, 2026 - firmware 0.18.14 release and Board #3 field result
 

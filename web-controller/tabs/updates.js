@@ -73,8 +73,11 @@ export function init(ctx) {
     } else if (device.hw !== latest.hw || typeof device.fw !== 'string' ||
                !/^\d+\.\d+\.\d+$/.test(device.fw)) {
       status.textContent = 'Cannot verify this board against the release. Installation locked.';
-    } else if (compareVersions(latest.version,device.fw) <= 0) {
-      status.textContent = 'Installed firmware ' + device.fw + ' is current or newer than published ' + latest.version + '.';
+    } else if (compareVersions(latest.version,device.fw) < 0) {
+      status.textContent = 'This jar is running firmware ' + device.fw + ', newer than the latest approved public release ' +
+        latest.version + '. This may be a development/test build. No update is offered because that would downgrade your jar; no files have changed.';
+    } else if (compareVersions(latest.version,device.fw) === 0) {
+      status.textContent = 'Firmware ' + device.fw + ' matches the latest approved public release. No update needed.';
     } else {
       selected = latest;
       status.textContent = 'Approved update available: ' + device.fw + ' → ' + latest.version +

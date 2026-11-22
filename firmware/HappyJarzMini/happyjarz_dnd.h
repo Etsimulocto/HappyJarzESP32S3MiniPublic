@@ -1514,7 +1514,6 @@ struct BloomDndDurableV2 {
   uint16_t equipWeapon; uint16_t equipArmor; uint16_t equipShield;
   uint16_t equipRing1; uint16_t equipRing2; uint16_t equipCharm;
 };
-struct BloomSystemSaveV2 {
 struct HJDndSave {
  uint32_t magic;
  uint16_t version, size;

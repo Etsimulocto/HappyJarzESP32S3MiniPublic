@@ -10,6 +10,9 @@ enum Input : uint8_t {UP=0,DOWN,LEFT,RIGHT,AKEY,BKEY};
 static bool active=false,dirty=false;
 static String lines[4];
 static void leave();
+// Original Arduino .ino used auto-prototypes; headers need explicit forward declarations.
+static int dndEffectiveMaxHp();
+static int dndEffectiveArmorClass();
 static void saveBloomSystemState();
 static bool loadBloomSystemState();
 // BLOOM_DND_PLAYABLE_V0_1

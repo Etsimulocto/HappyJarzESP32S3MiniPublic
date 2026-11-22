@@ -4339,7 +4339,7 @@ static void handleCommand(String line) {
   if(line=="GET STATUS"){Serial.println(statusLine());return;}
   if(line=="GET CAPS"){hjPrintCaps();return;}
   if(line=="GET MODULES"){
-    Serial.printf("HJ|MODULES|menu_mask=%u|system_locked=1|arcade=1|bloompetz=0|dnd=0|hid=0\\n",(unsigned)hjMenuMask);
+    Serial.printf("HJ|MODULES|menu_mask=%u|system_locked=1|arcade=1|bloompetz=0|dnd=0|hid=0\n",(unsigned)hjMenuMask);
     return;
   }
   if(line=="RESET MODULES"){
@@ -4348,7 +4348,7 @@ static void handleCommand(String line) {
     prefs.putUChar("menu_mask", hjMenuMask);
     prefs.end();
     uiGoHome();ack("RESET MODULES");
-    Serial.printf("HJ|MODULES|menu_mask=%u|system_locked=1|arcade=1|bloompetz=0|dnd=0|hid=0\\n",(unsigned)hjMenuMask);
+    Serial.printf("HJ|MODULES|menu_mask=%u|system_locked=1|arcade=1|bloompetz=0|dnd=0|hid=0\n",(unsigned)hjMenuMask);
     return;
   }
   if(line.startsWith("SET MODULES ")){
@@ -4362,7 +4362,7 @@ static void handleCommand(String line) {
     prefs.putUChar("menu_mask",hjMenuMask);
     prefs.end();
     uiGoHome();ack("SET MODULES");
-    Serial.printf("HJ|MODULES|menu_mask=%u|system_locked=1|arcade=1|bloompetz=0|dnd=0|hid=0\\n",(unsigned)hjMenuMask);
+    Serial.printf("HJ|MODULES|menu_mask=%u|system_locked=1|arcade=1|bloompetz=0|dnd=0|hid=0\n",(unsigned)hjMenuMask);
     return;
   }
   if(line=="GET LED FRAME"){hjEmitLedFrameNow();return;}

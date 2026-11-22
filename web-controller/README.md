@@ -23,6 +23,19 @@ The publisher checks the staged **exact known 0.18.14 SHA-256 and size** before 
 
 A static USB browser controller for the existing SuperMini SIMPLE protocol. No backend, account, Python installation, or paid domain required for website users. This is a development implementation with initial PC hardware results, not a fully verified replacement for the Mini app.
 
+## Experience Manager + Control Mapper (November 22, 2026)
+
+**New Web Studio tab: EXPERIENCES + MAPPING.** First-stage browser implementation, not an ESP32 firmware upgrade.
+
+- **Experience presets:** factory Classic, Pet Only, DND player, Business Display, and Everything/Maker. The full list of feature switches is editable. **Simplified navigation** hides deselected *Web Studio tabs*, with the Experiences tab always reachable for recovery. This does not remove compiled firmware, change the on-device menu or uninstall apps.
+- **Nine editable physical touch assignments:** UP GPIO4, DOWN GPIO5, LEFT GPIO9, RIGHT GPIO10, A GPIO1, B GPIO2, L GPIO11, R GPIO12, START GPIO13. Includes Spiralside gamepad, DAW and display-controller templates; explicit per-button selection and value fields.
+- **Live opt-in actions on current 0.18.14:** Physical `HJ|EVENT|input=...` lines can trigger safe existing commands (`SAVER NEXT/PREV/ENTER/EXIT/RESEED`, `SAVE`) **while connected in Web Studio**. Host `source=host` echoes are rejected, actions are serialized with a small debounce and commands require advertised controls. Board controls **still perform their normal physical functions**; these are added actions, not exclusive remaps.
+- **Not yet active:** A physical USB HID keyboard/gamepad or USB MIDI device, OS-level shortcuts (e.g., Ctrl+Z), and true on-device macro/remapping. Assignments for these are **editor presets only** until composite HID/MIDI firmware and an explicit device Control Mode are built and tested. Browsers cannot inject trusted system-wide OS input from serial events. BLOOMPETZ/DND firmware installation is likewise not implemented.
+- **Persistence:** Browser `localStorage` only (same computer/browser, not synced to the jar). JSON import/export and factory restore are provided. Restore never writes jar flash, NVS or SPIFFS. The web updater is unaffected.
+- **Safety to address before eventual device support:** preserve serial firmware recovery and protected exit from Control Mode; avoid accidental macros during ordinary jar navigation; version and validate device mappings; isolate saved game/pet state and require explicit confirmation before any firmware edition install.
+
+Source files: `tabs/experience.js`, `app.js`, `index.html`, `style.css`. This UI must be deployed by the site's normal publishing process; committing a feature branch is not proof the public site has updated. No physical board test of the new tab has been recorded.
+
 ## Implemented
 
 - Main Pi panel tabs: LIGHTS + CONTROL, WIFI + CLOCK, DISPLAY + INPUT, ART, PROFILE and SERVICE; UPDATES remains separate. BLOOPETZ and DND are reserved future panels, not implemented games or board features.

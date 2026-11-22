@@ -1,9 +1,9 @@
-name: Build HAPPY JARZ 0.18.15 candidate
+name: Build HAPPY JARZ 0.18.16 candidate
 
 on:
   push:
     branches:
-      - feature/mini-art-gallery-animation
+      - feature/bloompetz-first-module
     paths:
       - 'firmware/HappyJarzMini/**'
       - 'firmware/VERSION'
@@ -29,8 +29,8 @@ jobs:
       - name: Verify version and compile
         run: |
           set -eu
-          test "$(cat firmware/VERSION | tr -d '\r\n')" = "0.18.15"
-          grep -q 'HJ_FW_VERSION = "0.18.15"' firmware/HappyJarzMini/HappyJarzMini.ino
+          test "$(cat firmware/VERSION | tr -d '\r\n')" = "0.18.16"
+          grep -q 'HJ_FW_VERSION = "0.18.16"' firmware/HappyJarzMini/HappyJarzMini.ino
           mkdir -p release-staging/ci-build
           arduino-cli compile --fqbn "esp32:esp32:esp32s3:FlashSize=4M,PartitionScheme=default,PSRAM=disabled,CDCOnBoot=cdc" --output-dir release-staging/ci-build firmware/HappyJarzMini
       - name: Verify app-only image and document build
@@ -48,7 +48,7 @@ jobs:
       - name: Upload candidate for review - NOT public release
         uses: actions/upload-artifact@v4
         with:
-          name: happyjarz-0.18.15-unreleased-candidate
+          name: happyjarz-0.18.16-unreleased-candidate
           path: |
             release-staging/ci-build/HappyJarzMini.ino.bin
             release-staging/ci-build/HappyJarzMini.ino.partitions.bin

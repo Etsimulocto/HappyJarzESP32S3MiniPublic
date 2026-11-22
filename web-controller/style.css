@@ -41,3 +41,14 @@
 
 /* Additional touch readouts have explicit placement below the D-pad. */
 #display-pad-tile-l{grid-row:4;grid-column:1 / span 2}#display-pad-tile-start{grid-row:4;grid-column:3 / span 2}#display-pad-tile-r{grid-row:4;grid-column:5 / span 2}
+
+/* Experience Manager and Macro Mapper - browser-side configuration */
+.experience-features{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px;margin:14px 0}
+.experience-choice{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:10px;padding:12px;background:#10151e}
+.experience-choice span{flex:1;font-size:13px}.experience-choice small{font-size:10px;color:var(--muted);max-width:110px}
+.mapping-grid{display:grid;gap:9px;margin:16px 0}
+.mapping-row{display:grid;grid-template-columns:125px minmax(180px,1fr) minmax(140px,0.75fr);gap:12px;align-items:center}
+.mapping-row strong{font-size:12px;color:var(--mint)}
+.mapping-row select,.mapping-row input{min-width:0;width:100%}
+nav [data-tab][hidden]{display:none!important}
+@media(max-width:690px){.mapping-row{grid-template-columns:1fr 1fr}.mapping-row strong{grid-column:1/-1}.experience-choice{align-items:start;flex-wrap:wrap}}

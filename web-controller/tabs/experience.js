@@ -64,6 +64,70 @@ export function init(ctx){
  const bindingState=$('mapping-state');
  const padInputs=new Map();
  const featureInputs=new Map();
+ const MENU_ITEMS=['CLOCK','LIGHTS','GAMES','SETTINGS','POWER','SYSTEM','INFO','PROFILE'];
+ const MENU_NAMES=['Clock','Lights','Factory Arcade','Alarm + Timer','Power','System (always available)','Info','Profile'];
+ const deviceMenuChecks=[];
+ let deviceMenuMask=null,deviceMenuKnown=false;
+ function supportsDeviceMenu(){
+   const fw=firmwareVersion;
+   if(!fw || !/^\\d+\\.\\d+\\.\\d+$/.test(fw))return false;
+   const [a,b,c]=fw.split('.').map(Number);
+   return a>0 || (a===0 && (b>18 || (b===18 && c>=15)));
+ }
+ function updateDeviceMenu(){
+   const supported=!!ctx.identity && supportsDeviceMenu();
+   for(let i=0;i<8;i++){
+     const check=deviceMenuChecks[i];if(!check)continue;
+     check.disabled=!supported||i===5;
+     if(i===5)check.checked=true;
+     else if(deviceMenuKnown)check.checked=!!(deviceMenuMask & (1<<i));
+   }
+   for(const id of ['device-menu-read','device-menu-apply','device-menu-reset'])
+     $(id).disabled=!supported || ctx.serviceBusy || ctx.transferring || ctx.connecting || ctx.closing;
+   $('device-menu-status').textContent=!ctx.identity?'Connect a jar to configure the device menu.'
+     :!supported?'Firmware '+firmwareVersion+' does not support on-device menu settings; 0.18.15+ candidate required.'
+     :deviceMenuKnown?'Jar menu mask: '+deviceMenuMask+' (SYSTEM locked on). Changes below are drafts until Apply.'
+     :'Firmware supports menu settings. Read the current jar menu first.';
+ }
+ for(let i=0;i<8;i++){
+   const label=document.createElement('label');label.className='experience-choice';
+   const check=document.createElement('input');check.type='checkbox';check.checked=true;
+   const text=document.createElement('span');text.textContent=MENU_NAMES[i];
+   const note=document.createElement('small');note.textContent='On-jar menu item '+(i+1);
+   label.append(check,text,note);$('device-menu-choices').append(label);
+   deviceMenuChecks.push(check);
+ }
+ async function deviceMenuWork(fn){
+   if(!supportsDeviceMenu()||!ctx.identity)throw Error('This jar needs firmware 0.18.15+.');
+   if(ctx.serviceBusy||ctx.transferring)throw Error('Another jar operation is running.');
+   ctx.serviceBusy=true;ctx.controls();
+   try{await fn();}finally{ctx.serviceBusy=false;ctx.controls();updateDeviceMenu();}
+ }
+ $('device-menu-read').onclick=()=>void deviceMenuWork(async()=>{
+   const packet=await ctx.query('GET MODULES','MODULES');
+   const mask=Number(packet.data.menu_mask);
+   if(!Number.isInteger(mask)||mask<0||mask>255)throw Error('Invalid mask from jar.');
+   deviceMenuMask=mask|32;deviceMenuKnown=true;updateDeviceMenu();
+ }).catch(e=>message('Could not read menu: '+e.message,'error'));
+ $('device-menu-apply').onclick=()=>void deviceMenuWork(async()=>{
+   if(!deviceMenuKnown)throw Error('Read jar menu before changing it.');
+   const mask=deviceMenuChecks.reduce((n,c,i)=>n|(c.checked||i===5?1<<i:0),0);
+   if(!confirm('Apply the selected OLED menu visibility to this jar? SYSTEM remains available. Other features and data are not removed.'))return;
+   await ack('SET MODULES '+mask,'SET MODULES');
+   const packet=await ctx.query('GET MODULES','MODULES');
+   if(Number(packet.data.menu_mask)!==(mask|32))throw Error('Jar returned an unexpected menu mask.');
+   deviceMenuMask=mask|32;deviceMenuKnown=true;updateDeviceMenu();
+   message('On-device menu saved and verified.');
+ }).catch(e=>message('Could not apply jar menu: '+e.message,'error'));
+ $('device-menu-reset').onclick=()=>void deviceMenuWork(async()=>{
+   if(!confirm('Restore all eight original OLED menu entries?'))return;
+   await ack('RESET MODULES');
+   const packet=await ctx.query('GET MODULES','MODULES');
+   if(Number(packet.data.menu_mask)!==255)throw Error('Restore verification failed.');
+   deviceMenuMask=255;deviceMenuKnown=true;updateDeviceMenu();
+   message('Original on-device menu restored.');
+ }).catch(e=>message('Could not restore jar menu: '+e.message,'error'));
+
  const APP_TOTAL=0x140000, VERIFIED_APP_BYTES=1118144, ART_TOTAL=0x160000;
  function kib(value){return (value/1024).toLocaleString('en-US',{maximumFractionDigits:1})+' KiB';}
  function updateStorage(){
@@ -120,7 +184,7 @@ export function init(ctx){
   for(const [name,obj] of padInputs){obj.kind.value=config.bindings[name].kind;obj.value.value=config.bindings[name].value;
    obj.value.disabled=!['KEYBOARD','GAMEPAD','MIDI'].includes(obj.kind.value);
   }
-  applyVisibility();status();updateStorage();
+  applyVisibility();status();updateStorage();updateDeviceMenu();
  }
  for(const [id,label] of FEATURES){
   const row=document.createElement('label');row.className='experience-choice';
@@ -204,7 +268,7 @@ export function init(ctx){
  const safeCommands=new Set(['SAVER NEXT','SAVER PREV','SAVER ENTER','SAVER EXIT','SAVER RESEED','SAVE']);
  return {
   receive({type,data}){
-   if(type==='IDENTITY'){boardId=data.chip||data.serial||'V1';firmwareVersion=data.fw||null;status();updateStorage();}
+   if(type==='IDENTITY'){boardId=data.chip||data.serial||'V1';firmwareVersion=data.fw||null;deviceMenuKnown=false;status();updateStorage();updateDeviceMenu();}
    if(type!=='EVENT'||!config.bridge||!ctx.identity||ctx.serviceBusy||ctx.transferring||ctx.connecting||ctx.closing||busy)return;
    // Never echo actions from app KEY commands back into the jar. Physical presses only.
    if(data.source==='host')return; // Native firmware physical events omit source; host KEY events say source=host.
@@ -216,8 +280,8 @@ export function init(ctx){
     .catch(error=>{log('Mapped input failed: '+error.message,'warn','EXPERIENCE');})
     .finally(()=>{busy=false;});
   },
-  reset(){boardId=null;firmwareVersion=null;artCount=null;status();updateStorage();},
-  onShow(){status();updateStorage();},
+  reset(){boardId=null;firmwareVersion=null;artCount=null;deviceMenuKnown=false;status();updateStorage();updateDeviceMenu();},
+  onShow(){status();updateStorage();updateDeviceMenu();},
   getConfiguration(){return structuredClone(config);}
  };
 }

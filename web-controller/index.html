@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>HAPPY JARZ · Studio</title><link rel="stylesheet" href="style.css?v=controller15"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>HAPPY JARZ · Studio</title><link rel="stylesheet" href="style.css?v=controller16"></head>
 <body>
 <iframe id="bloom-background" src="bloomsaver/index.html?embed=1" title="BloomSaver live glitter background" tabindex="-1" aria-hidden="true"></iframe>
 <button id="background-close" hidden>Done editing · return to Jarz</button>
@@ -45,6 +45,17 @@
 <article><p>Choose a simple view for a pet companion, a dungeon player, a business display, or the full factory experience. These preferences are stored in this browser, not on the jar. Installed firmware and saved artwork are never removed by hiding a menu.</p>
 <div class="grid"><label>Experience preset<select id="experience-preset"></select></label><label>Preferred start section<select id="experience-start"><option value="home">Lights + Control</option><option value="display">Display</option><option value="art">Art Studio</option><option value="setup">Wi-Fi + Clock</option><option value="profile">Profile</option></select></label></div>
 <label class="inline"><input type="checkbox" id="experience-simple"> Simplified Web Studio navigation (hide sections not selected)</label>
+<h3>On-board storage</h3>
+<section class="experience-storage" aria-label="Jar storage summary">
+<div class="experience-storage-head"><strong>Firmware application</strong><output id="storage-app-label">Connect a jar for version-specific figures</output></div>
+<div class="experience-meter" role="progressbar" aria-label="Firmware application space used" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="storage-app-meter"><span id="storage-app-fill" style="width:0%"></span></div>
+<p id="storage-app-detail" class="help">Space figures are available for the measured 0.18.14 application only.</p>
+<div class="experience-storage-head"><strong>Artwork / data partition</strong><output id="storage-art-label">1,408 KiB total</output></div>
+<div class="experience-meter art-meter" role="progressbar" aria-label="Art gallery slot occupancy" aria-valuemin="0" aria-valuemax="50" aria-valuenow="0" id="storage-art-meter"><span id="storage-art-fill" style="width:0%"></span></div>
+<p id="storage-art-detail" class="help">Filesystem free bytes are not exposed by firmware 0.18.14; slot occupancy is separate from actual bytes used.</p>
+<button id="storage-refresh" data-device>Refresh artwork slots</button>
+<p class="help">Hiding a section saves <strong>0 KiB</strong> on the jar. Independent flash sizes for clock, lights, games, and other compiled features require comparison builds; showing invented values here would be misleading.</p>
+</section>
 <h3>Choose sections and planned modules</h3><div id="experience-features" class="experience-features"></div>
 <p id="experience-state" role="status"></p>
 <p class="help">Firmware safety and updates are not uninstalled; the EXPERIENCES + MAPPING tab remains accessible to restore the full layout. BLOOMPETZ, DND and native USB HID/MIDI need compatible future firmware before they can run from this edition. Full on-jar menu customization is also future firmware work.</p>
@@ -59,4 +70,4 @@
 </article></section>
 <section id="updates" class="panel" hidden><article><p class="eyebrow">KEEP THE JOY CURRENT</p><h2>Firmware update center</h2><p id="update-installed">Connect your jar to read its installed firmware.</p><p id="release-status" role="status">Checking release information…</p><div class="row"><button id="check-updates">Check for updates</button><button id="install-firmware" disabled>Install verified update</button></div><label class="inline"><input type="checkbox" id="update-confirm" disabled> I understand the jar will restart; I will keep USB connected until flashing finishes.</label><progress id="update-progress" value="0" max="100" hidden></progress><p id="update-progress-label" role="status">No update running.</p><p class="help">Only approved ESP32-S3 SuperMini 4 MB application images are accepted. The updater verifies release compatibility and SHA-256, never erases the full flash, and preserves other partitions (including profile and artwork). Do not close this page during flashing. Use desktop Chrome or Edge with Web Serial; close other USB controller apps.</p><p class="help">If no verified firmware release is published, installation stays disabled. After an installation, reconnect to verify the new version and check LEDs, OLED and touch.</p><a href="https://github.com/Etsimulocto/HappyJarzESP32S3MiniPublic" target="_blank" rel="noopener">Project and build instructions ↗</a></article></section>
 <p id="message" role="status" aria-live="polite"></p><details><summary>Connection log</summary><pre id="log"></pre></details>
-</main><footer>HAPPY JARZ · Handmade happiness, a little bit brighter. <span>Web Studio · Happy Jarz</span></footer><script type="module" src="app.js?v=controller15"></script></body></html>
+</main><footer>HAPPY JARZ · Handmade happiness, a little bit brighter. <span>Web Studio · Happy Jarz</span></footer><script type="module" src="app.js?v=controller16"></script></body></html>

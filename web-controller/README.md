@@ -1,5 +1,13 @@
 # HAPPY JARZ Web Studio — development branch
 
+## November 22, 2026 — optional automatic USB Serial/JTAG reconnection
+
+- Web Studio can now **auto-reconnect** to exactly one **previously browser-authorized** ESP32-S3 native USB Serial/JTAG port (USB VID `0x303A`, PID `0x1001`) using `navigator.serial.getPorts()`. It never auto-opens generic COM3/COM4 or an unknown USB-to-UART converter. Native USB device descriptors identify interface type, not a unique physical jar; protocol handshake checks HAPPY JARZ V1 firmware before starting telemetry. When multiple matching authorized ports are present, the user chooses manually instead.
+- **First connection still requires one user click on Connect jar and selection in Edge/Chrome's permission dialog.** Browsers do not allow silently granting USB serial permissions, and Windows COM5 is not exposed as a portable web device name.
+- Header keeps **Connect jar** and **Disconnect**, alongside an **Auto reconnect** checkbox (enabled by default, locally saved as `happyjarz-auto-connect`). Manual Disconnect suppresses reconnect for that page session; manual Connect enables it again. Unchecking Auto reconnect disables automatic connection. Re-enumeration attempts use browser `connect` notifications.
+- Only changes Web Studio code: **no firmware rebuild/flash, no published site update**. Requires local `http://localhost:8000` testing with the board already paired, reload, manual disconnect, and reconnect/USB unplug. Also validate the first-time chooser and mismatch/multiple-device behavior. Test script for JavaScript syntax passed; live browser hardware behavior remains unverified.
+
+
 ## November 22, 2026 — mapper restore defaults + labeling
 
 - Added a separate **Restore default button mappings** button above the nine-pad mapping grid; confirmation required. It resets all **36 slots** (9 GPIO inputs × 4 slots) to unassigned and turns off browser mapped commands, **without** resetting the Experience Manager layout or changing firmware, NVS, artwork, saved games or OLED menu.

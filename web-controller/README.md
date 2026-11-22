@@ -1,5 +1,14 @@
 # HAPPY JARZ Web Studio — development branch
 
+## November 22, 2026 — four-slot button mapper (local Web Studio test)
+
+- Nine physical GPIO inputs: UP 4, DOWN 5, LEFT 9, RIGHT 10, A 1, B 2, L 11, R 12, START 13. Each has **four editable slots** with action and argument dropdowns; old one-slot browser configurations automatically load in slot 1. Existing browser JSON export/import remains supported.
+- **Executable Web Serial commands**, opt-in via `Enable mapped button commands`: SAVER NEXT/PREV/ENTER/EXIT/RESEED/SPEED UP/SPEED DOWN, SAVE, SET PATTERN (allowed named patterns), SET BRIGHTNESS (0–50 in steps of 5). Commands are dispatched **sequentially, awaiting ACK** from the board. This is an additive mapper: original physical firmware/game controls are not overridden.
+- **Planning-only dropdown categories:** KEYBOARD (including modifiers/arrows/function keys), MOUSE, GAMEPAD (D-pad/sticks/axes/buttons) and MIDI. Browser Web Serial cannot create native system-wide keyboard, mouse, MIDI or virtual gamepad events; these entries deliberately **do not execute**. Implementing actual OS outputs requires a separate native bridge or new compatible USB HID/MIDI firmware. No claim of HID functionality.
+- Control mapper stores only browser preferences under existing `happyjarz-experience-v1` key. No new device NVS keys or flashing. Do not mistake the Experience Manager's browser checkbox for on-device GPIO remapping or firmware module installation.
+- Basic syntax checks and `validateConfig` migration/argument checks passed. Physical browser interaction with multi-slot command sequences is **not yet verified** and must be tested locally before website publication.
+
+
 ## November 22, 2026 — Experience Manager/UI cleanup (development branch)
 
 - Browser Experience feature cards now distinguish **installed-on-jar firmware** from **browser-only visibility**. BLOOMPETZ 0.18.16+ and DND 0.18.17+ are recognized; native USB HID/MIDI remains unimplemented and is distinct from browser Xbox controller forwarding. Hiding a section still frees **0 KiB** of flashed firmware.

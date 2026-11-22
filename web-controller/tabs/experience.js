@@ -11,7 +11,7 @@ export const FEATURES=[
  ['profile','Owner Profile'],['art','Art Studio'],['service','Service + Diagnostics'],
  ['updates','Firmware Updates'],['arcade','Factory Arcade (on jar)'],
  ['pet','BLOOMPETZ (on-device pet game)'],['dnd','DND (on-device dungeon game)'],
- ['hid','USB Macros / Gamepad (planned firmware)']
+ ['hid','Native USB HID/MIDI (not installed)']
 ];
 export const PRESETS={
  classic:['home','setup','display','profile','art','service','updates','arcade'],
@@ -24,9 +24,9 @@ export const ACTIONS=[
  ['NONE','Unassigned'],['SAVER NEXT','Next screensaver'],['SAVER PREV','Previous screensaver'],
  ['SAVER ENTER','Start screensaver'],['SAVER EXIT','Exit screensaver'],
  ['SAVER RESEED','New screensaver variation'],['SAVER SPEED UP','Screensaver faster'],['SAVER SPEED DOWN','Screensaver slower'],['SAVE','Save jar settings'],['SET PATTERN','LED pattern'],['SET BRIGHTNESS','Brightness percent'],
- ['KEYBOARD','Keyboard key (future native HID/bridge)'],['MOUSE','Mouse button (future native HID/bridge)'],
- ['GAMEPAD','Gamepad output (future native HID/bridge)'],
- ['MIDI','MIDI note / control (future USB MIDI)']
+ ['KEYBOARD','Keyboard assignment (saved only)'],['MOUSE','Mouse assignment (saved only)'],
+ ['GAMEPAD','Virtual gamepad assignment (saved only)'],
+ ['MIDI','MIDI assignment (saved only)']
 ];
 const SLOTS=4;
 export const ARGUMENTS={
@@ -271,7 +271,7 @@ export function init(ctx){
    ' '+(boardId?'Connected jar: '+boardId+'.':'Not connected.')+
    ' These preferences do not remove firmware modules or change the jar OLED menu.';
   bindingState.textContent=config.bridge
-   ?'Mapping active: four action slots run in order for each physical press. Keyboard/mouse/gamepad/MIDI output entries are saved plans, not system events.'
+   ?'Mapping ON: jar commands run on physical button presses. Keyboard, mouse, virtual gamepad and MIDI assignments are saved only and do not send OS inputs.'
     :'Mapped shortcuts OFF. Copper buttons keep their original firmware behavior.';
  }
  function render(){
@@ -359,6 +359,13 @@ export function init(ctx){
   }catch(error){message('Import rejected: '+error.message,'error');}
   finally{event.target.value='';}
  };
+ $('mapping-restore').onclick=()=>{
+  if(!confirm('Restore all 36 button mapping slots to unassigned? This leaves the Studio layout, jar menu, saved games and artwork unchanged.'))return;
+  config.bindings=Object.fromEntries(PADS.map(([name])=>[name,Array.from({length:SLOTS},DEFAULT_SLOT)]));
+  config.bridge=false;
+  save();render();$('mapping-preset').value='custom';
+  message('Button mapping defaults restored: all 36 slots unassigned, mapped commands OFF. Jar unchanged.');
+ };
  const quickProfiles={
   gaming:{UP:['GAMEPAD','D-pad Up'],DOWN:['GAMEPAD','D-pad Down'],LEFT:['GAMEPAD','D-pad Left'],RIGHT:['GAMEPAD','D-pad Right'],A:['GAMEPAD','A'],B:['GAMEPAD','B'],L:['GAMEPAD','LB'],R:['GAMEPAD','RB'],START:['GAMEPAD','Start']},
   daw:{UP:['KEYBOARD','Arrow Up'],DOWN:['KEYBOARD','Arrow Down'],LEFT:['KEYBOARD','Arrow Left'],RIGHT:['KEYBOARD','Arrow Right'],A:['KEYBOARD','Space'],B:['KEYBOARD','Escape'],L:['KEYBOARD','Ctrl+Z'],R:['KEYBOARD','Ctrl+Shift+Z'],START:['MIDI','Transport Play']},
@@ -368,7 +375,7 @@ export function init(ctx){
   const value=$('mapping-preset').value;
   if(!quickProfiles[value])return;
   config.bindings=Object.fromEntries(PADS.map(([n])=>{const [kind,v]=quickProfiles[value][n];return [n,[cleanSlot({kind,value:v}),...Array.from({length:SLOTS-1},DEFAULT_SLOT)]];}));
-  save();render();message('Four-slot profile saved. HID, mouse and MIDI require a future native bridge.');
+  save();render();message('Four-slot profile saved. Jar actions work now; OS output assignments are saved only.');
  };
  render();
  if(!config.simple||config.features.includes(config.home))document.querySelector('[data-tab="'+config.home+'"]')?.click();

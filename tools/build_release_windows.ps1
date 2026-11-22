@@ -1,4 +1,4 @@
-# HAPPY JARZ — Windows firmware release candidate builder
+# HAPPY JARZ - Windows firmware release candidate builder
 # Compiles and stages a SHA-256-verified APP-ONLY candidate.
 # NEVER flashes hardware or publishes releases.json.
 param(
@@ -70,7 +70,7 @@ if ($app.Count -ne 1 -or $partitions.Count -ne 1) {
 if ($LASTEXITCODE -ne 0) { throw "Partition/checksum verification failed" }
 
 Write-Host ""
-Write-Host "CANDIDATE STAGED — NOT PUBLISHED OR FLASHED" -ForegroundColor Yellow
+Write-Host "CANDIDATE STAGED - NOT PUBLISHED OR FLASHED" -ForegroundColor Yellow
 Write-Host "App binary: $out\happyjarz-$Version-app.bin"
 Write-Host "Manifest:   $out\release-entry.json"
 Write-Host "Next: verify Board #3 partition layout, back up settings/art,"

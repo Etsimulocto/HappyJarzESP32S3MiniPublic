@@ -1,6 +1,13 @@
 name: Publish HAPPY JARZ Web Studio
 on:
   workflow_dispatch:
+  # One-time public testing deployment: an explicit marker commit triggers Pages.
+  # Normal feature-branch commits do not deploy automatically.
+  push:
+    branches:
+      - feature/dnd-next-module
+    paths:
+      - .github/site-deploy-test-2026-11-22.txt
 permissions:
   contents: read
   pages: write

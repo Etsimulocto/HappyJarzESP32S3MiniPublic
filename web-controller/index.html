@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>HAPPY JARZ · Studio</title><link rel="stylesheet" href="style.css?v=controller16"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>HAPPY JARZ · Studio</title><link rel="stylesheet" href="style.css?v=controller17"></head>
 <body>
 <iframe id="bloom-background" src="bloomsaver/index.html?embed=1" title="BloomSaver live glitter background" tabindex="-1" aria-hidden="true"></iframe>
 <button id="background-close" hidden>Done editing · return to Jarz</button>
@@ -56,6 +56,14 @@
 <button id="storage-refresh" data-device>Refresh artwork slots</button>
 <p class="help">Hiding a section saves <strong>0 KiB</strong> on the jar. Independent flash sizes for clock, lights, games, and other compiled features require comparison builds; showing invented values here would be misleading.</p>
 </section>
+<h3>On-device OLED menu (firmware 0.18.15+)</h3>
+<section class="experience-storage" aria-label="On-device menu configuration">
+<p>Choose which of the existing eight menu items the jar itself displays. This is separate from the browser-only feature switches below. SYSTEM always remains accessible. Requires firmware 0.18.15 or newer.</p>
+<div id="device-menu-choices" class="experience-features"></div>
+<div class="row"><button id="device-menu-read" data-device>Read jar menu</button><button id="device-menu-apply" data-device>Apply menu to jar</button><button id="device-menu-reset" data-device>Restore full jar menu</button></div>
+<p id="device-menu-status" role="status">Connect an updated jar to manage its menu. Published firmware 0.18.14 does not support this feature.</p>
+<p class="help">Only OLED menu visibility changes. Firmware code, artwork, profile and data remain intact. No BLOOMPETZ/DND install is implied. The jar keeps its normal input behavior.</p>
+</section>
 <h3>Choose sections and planned modules</h3><div id="experience-features" class="experience-features"></div>
 <p id="experience-state" role="status"></p>
 <p class="help">Firmware safety and updates are not uninstalled; the EXPERIENCES + MAPPING tab remains accessible to restore the full layout. BLOOMPETZ, DND and native USB HID/MIDI need compatible future firmware before they can run from this edition. Full on-jar menu customization is also future firmware work.</p>
@@ -70,4 +78,4 @@
 </article></section>
 <section id="updates" class="panel" hidden><article><p class="eyebrow">KEEP THE JOY CURRENT</p><h2>Firmware update center</h2><p id="update-installed">Connect your jar to read its installed firmware.</p><p id="release-status" role="status">Checking release information…</p><div class="row"><button id="check-updates">Check for updates</button><button id="install-firmware" disabled>Install verified update</button></div><label class="inline"><input type="checkbox" id="update-confirm" disabled> I understand the jar will restart; I will keep USB connected until flashing finishes.</label><progress id="update-progress" value="0" max="100" hidden></progress><p id="update-progress-label" role="status">No update running.</p><p class="help">Only approved ESP32-S3 SuperMini 4 MB application images are accepted. The updater verifies release compatibility and SHA-256, never erases the full flash, and preserves other partitions (including profile and artwork). Do not close this page during flashing. Use desktop Chrome or Edge with Web Serial; close other USB controller apps.</p><p class="help">If no verified firmware release is published, installation stays disabled. After an installation, reconnect to verify the new version and check LEDs, OLED and touch.</p><a href="https://github.com/Etsimulocto/HappyJarzESP32S3MiniPublic" target="_blank" rel="noopener">Project and build instructions ↗</a></article></section>
 <p id="message" role="status" aria-live="polite"></p><details><summary>Connection log</summary><pre id="log"></pre></details>
-</main><footer>HAPPY JARZ · Handmade happiness, a little bit brighter. <span>Web Studio · Happy Jarz</span></footer><script type="module" src="app.js?v=controller16"></script></body></html>
+</main><footer>HAPPY JARZ · Handmade happiness, a little bit brighter. <span>Web Studio · Happy Jarz</span></footer><script type="module" src="app.js?v=controller17"></script></body></html>

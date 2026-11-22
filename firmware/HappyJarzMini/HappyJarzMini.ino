@@ -1,4 +1,4 @@
-// HAPPY JARZ ESP32-S3 SuperMini firmware v0.18.16 (BLOOMPETZ CANDIDATE)
+// HAPPY JARZ ESP32-S3 SuperMini firmware v0.18.17 (DND HARDWARE-TEST CANDIDATE)
 // SIMPLE profile: nine capacitive inputs, 128x64 OLED, four APA106 lamps,
 // local games/screensavers, and the HAPPY JARZ USB control protocol.
 //
@@ -28,6 +28,7 @@
 #include <U8g2lib.h>
 #include "happyjarz_arcade.h"
 #include "happyjarz_bloompetz.h"
+#include "happyjarz_dnd.h"
 #include "happyjarz_art.h"
 #include <math.h>
 #include <time.h>
@@ -36,7 +37,7 @@
 #include "happyjarz_led_types.h"
 
 static const char *HJ_HW_VERSION = "V1";
-static const char *HJ_FW_VERSION = "0.18.16";
+static const char *HJ_FW_VERSION = "0.18.17";
 
 static String hjChipId() {
   char id[13];
@@ -347,19 +348,21 @@ static constexpr uint8_t HJ_MENU_ALL = 0xFF;
 // BloomPetz is an optional ninth entry. The 0.18.15 8-bit menu mask is
 // preserved unchanged, including all custom menu choices.
 static bool hjPetVisible = true;
+static bool hjDndVisible = true; // independent from the original 8-bit mask
 static constexpr uint8_t HJ_MENU_SYSTEM_BIT = 1U << 5;
 static uint8_t hjMenuMask = HJ_MENU_ALL;
 static uint8_t hjMenuCount() {
   uint8_t count=0;
   for(uint8_t i=0;i<8;++i) if(hjMenuMask & (1U<<i)) count++;
-  return count + (hjPetVisible ? 1 : 0);
+  return count + (hjPetVisible ? 1 : 0) + (hjDndVisible ? 1 : 0);
 }
 static uint8_t hjMenuIdAt(uint8_t visibleIndex) {
   for(uint8_t i=0;i<8;++i) if(hjMenuMask & (1U<<i)) {
     if(!visibleIndex) return i;
     --visibleIndex;
   }
-  return hjPetVisible ? 8 : 5; // optional ninth entry or SYSTEM fallback
+  if (hjPetVisible) {if (!visibleIndex) return 8; --visibleIndex;}
+  return hjDndVisible ? 9 : 5; // DND or SYSTEM fallback
 }
 static uint8_t hjMenuIndexNext(uint8_t index, int8_t delta) {
   uint8_t count=hjMenuCount();
@@ -422,6 +425,7 @@ static void loadSettings() {
   ownerBirthday = prefs.getString("owner_bday", "--");
   hjMenuMask = prefs.getUChar("menu_mask", HJ_MENU_ALL) | HJ_MENU_SYSTEM_BIT;
   hjPetVisible = prefs.getBool("pet_menu", true);
+  hjDndVisible = prefs.getBool("dnd_menu", true);
   inputMode = "JAR";
   prefs.end();
 }
@@ -447,6 +451,7 @@ static void persistSettings() {
   prefs.putString("owner_bday", ownerBirthday);
   prefs.putUChar("menu_mask", hjMenuMask);
   prefs.putBool("pet_menu", hjPetVisible);
+  prefs.putBool("dnd_menu", hjDndVisible);
   prefs.end();
 }
 
@@ -1585,7 +1590,8 @@ enum UiScreen : uint8_t {
   UI_POWER,
   UI_INFO,
   UI_PROFILE,
-  UI_BLOOMPETZ
+  UI_BLOOMPETZ,
+  UI_DND
 };
 static UiScreen uiScreen = UI_HOME;
 static uint8_t uiCursor = 0;
@@ -3374,7 +3380,7 @@ static void oledRenderHome() {
 }
 
 static void oledRenderMainMenu() {
-  static const char *items[] = {"CLOCK", "LIGHTS", "GAMES", "SETTINGS", "POWER", "SYSTEM", "INFO", "PROFILE", "BLOOMPETZ"};
+  static const char *items[] = {"CLOCK", "LIGHTS", "GAMES", "SETTINGS", "POWER", "SYSTEM", "INFO", "PROFILE", "BLOOMPETZ", "DND"};
   uint8_t count = hjMenuCount();
   if (uiCursor >= count) uiCursor = 0;
   if (uiCursor < uiScroll) uiScroll = uiCursor;
@@ -3811,6 +3817,7 @@ static void uiSelectMain() {
     case 6: infoPage = 0; uiScreen = UI_INFO; break;
     case 7: profileMenuCursor = 0; profileEditor = 0; uiScreen = UI_PROFILE; break;
     case 8: HJPet::enter(); uiScreen = UI_BLOOMPETZ; break;
+    case 9: HJDnd::enter(); uiScreen = UI_DND; break;
     default: uiScreen = UI_SYSTEM; break;
   }
   oledDirty = true;
@@ -3821,7 +3828,7 @@ static void serviceOled() {
   if (hjAccessoryPaused) return;
   if (!oledReady || !oled) return;
   unsigned long now = millis();
-  if (uiScreen != UI_BLOOMPETZ) serviceScreensaverClock();
+  if (uiScreen != UI_BLOOMPETZ && uiScreen != UI_DND) serviceScreensaverClock();
   if (hjStartupCountdownActive &&
       (long)(millis() - hjStartupCountdownUntilMs) >= 0) {
     hjStartupCountdownActive = false;
@@ -3860,6 +3867,9 @@ static void serviceOled() {
       case UI_BLOOMPETZ:
         HJPet::draw();
         for(uint8_t line=0;line<4;++line) oledCentered(13+line*16,HJPet::lines[line]);
+        break;
+      case UI_DND:
+        for(uint8_t row=0;row<4;++row) oled->drawStr(0,13+row*16,HJDnd::lines[row].c_str());
         break;
       case UI_SETTINGS: oledRenderSettings(); break;
       case UI_POWER: oledRenderPower(); break;
@@ -3989,6 +3999,15 @@ static void serviceInputs() {
   hjServiceShoulderBrightness(q);
   hjEmitExtraInputEvents(q);
 
+  // DND owns D-pad/A/B; START returns to main menu safely.
+  // Both physical touch and virtual host keys flow through q[] here.
+  if(inputMode=="JAR" && uiScreen==UI_DND){
+    if(q[IN_START]&&!latched[IN_START]){HJDnd::leave();uiOpenMainMenu();}
+    else for(uint8_t i=0;i<6;++i)if(q[i]&&!latched[i]){HJDnd::button(i);oledDirty=true;}
+    if(!HJDnd::running())uiOpenMainMenu();
+    for(uint8_t i=0;i<INPUT_COUNT;++i)latched[i]=q[i];
+    return;
+  }
   // Pet screen owns the six D-pad/A/B controls, not the factory arcade.
   // Menu selection and long B/USB KEY flow remain normal elsewhere.
   if (inputMode == "JAR" && uiScreen == UI_BLOOMPETZ) {
@@ -4381,8 +4400,18 @@ static void handleCommand(String line) {
     ack("SET PET MODULE");
     return;
   }
+  if(line=="GET DND MODULE"){
+    Serial.printf("HJ|DNDMODULE|installed=1|visible=%u|original=BloomCircuit|save=hjdnd|items=%u|species=48\n",hjDndVisible?1:0,(unsigned)HJDnd::DND_ITEM_COUNT);
+    return;
+  }
+  if(line=="SET DND MODULE ON"||line=="SET DND MODULE OFF"){
+    hjDndVisible=(line=="SET DND MODULE ON");
+    prefs.begin("happyjarz",false);prefs.putBool("dnd_menu",hjDndVisible);prefs.end();
+    if(!hjDndVisible && uiScreen==UI_DND)HJDnd::leave();
+    uiGoHome();ack("SET DND MODULE");return;
+  }
   if(line=="GET MODULES"){
-    Serial.printf("HJ|MODULES|menu_mask=%u|system_locked=1|arcade=1|bloompetz=1|dnd=0|hid=0\n",(unsigned)hjMenuMask);
+    Serial.printf("HJ|MODULES|menu_mask=%u|system_locked=1|arcade=1|bloompetz=1|dnd=1|dnd_visible=%u|hid=0\n",(unsigned)hjMenuMask,hjDndVisible?1:0);
     return;
   }
   if(line=="RESET MODULES"){
@@ -4390,8 +4419,8 @@ static void handleCommand(String line) {
     prefs.begin("happyjarz", false);
     prefs.putUChar("menu_mask", hjMenuMask);
     prefs.end();
-    hjPetVisible=true;
-    prefs.begin("happyjarz",false);prefs.putBool("pet_menu",true);prefs.end();
+    hjPetVisible=true; hjDndVisible=true;
+    prefs.begin("happyjarz",false);prefs.putBool("pet_menu",true);prefs.putBool("dnd_menu",true);prefs.end();
     uiGoHome();ack("RESET MODULES");
     Serial.printf("HJ|MODULES|menu_mask=%u|system_locked=1|arcade=1|bloompetz=1|dnd=0|hid=0\n",(unsigned)hjMenuMask);
     return;
@@ -4644,6 +4673,10 @@ void loop(){
   servicePattern();
   serviceAlarm();
   serviceTimer();
+  if(HJDnd::running()){
+    HJDnd::service();
+    if(uiScreen==UI_DND && HJDnd::dirty){oledDirty=true;HJDnd::dirty=false;}
+  }
   if(HJPet::running()){
     HJPet::service();
     static unsigned long hjPetOledFrameMs=0;

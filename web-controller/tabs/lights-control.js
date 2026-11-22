@@ -49,16 +49,22 @@ async function sendHostKey(key){
   hostPending++;try{await ack('KEY '+key,'KEY');pulseKey(key);}finally{hostPending--;}
 }
 const keyboardKeys={ArrowUp:'up',ArrowDown:'down',ArrowLeft:'left',ArrowRight:'right',z:'a',x:'b',a:'x',s:'y',q:'l',w:'r',Enter:'start',Shift:'select'};
-function hostInputAllowed(){const target=document.activeElement;return $('host-input-enabled').checked && !$('home').hidden && document.hasFocus() && !target?.matches('input,textarea,select,[contenteditable=true]');}
-window.addEventListener('keydown',event=>{const key=keyboardKeys[event.key] || keyboardKeys[event.key.toLowerCase()];if(!key || event.repeat || event.ctrlKey || event.metaKey || event.altKey || !hostInputAllowed() || !ctx.identity || !ctx.deviceControls.has(key))return;event.preventDefault();void sendHostKey(key).catch(error=>message(error.message,'error'));});
+// Gamepad is an explicit opt-in, but must work across every Studio tab:
+ // game screens are rendered on the jar, not necessarily on the Lights tab.
+function hostGamepadAllowed(){return $('host-input-enabled').checked && document.hasFocus() && Boolean(ctx.identity) && !ctx.transferring && !ctx.serviceBusy && !ctx.closing && !ctx.connecting;}
+function hostKeyboardAllowed(){const target=document.activeElement;return hostGamepadAllowed() && !$('home').hidden && !target?.matches('input,textarea,select,[contenteditable=true]');}
+window.addEventListener('keydown',event=>{const key=keyboardKeys[event.key] || keyboardKeys[event.key.toLowerCase()];if(!key || event.repeat || event.ctrlKey || event.metaKey || event.altKey || !hostKeyboardAllowed() || !ctx.identity || !ctx.deviceControls.has(key))return;event.preventDefault();void sendHostKey(key).catch(error=>message(error.message,'error'));});
 let previousGamepadKeys=new Set(),lastGamepad='';
 function pollGamepad(){
   let pad;try{pad=Array.from(navigator.getGamepads?.() || []).find(p=>p?.connected);}catch(error){$('gamepad-state').textContent='Gamepad access unavailable in this browser.';log(error.message,'warn','GAMEPAD');return;}
   const label=pad ? `${pad.id} · ${pad.mapping==='standard'?'standard mapping':'mapping unsupported'}` : 'No gamepad detected · press a controller button to discover it';
   if(label!==lastGamepad){$('gamepad-state').textContent=label;lastGamepad=label;}
   const keys=gamepadKeys(pad);
-  if(hostInputAllowed())for(const key of keys)if(!previousGamepadKeys.has(key))void sendHostKey(key).catch(error=>message(error.message,'error'));
-  previousGamepadKeys=keys;requestAnimationFrame(pollGamepad);
+  if(hostGamepadAllowed())for(const key of keys)if(!previousGamepadKeys.has(key))void sendHostKey(key).catch(error=>message(error.message,'error'));
+  // When forwarding is paused, release the edge detector so presses made
+  // after reconnecting or re-enabling the checkbox are not silently missed.
+  previousGamepadKeys=hostGamepadAllowed()?keys:new Set();
+  requestAnimationFrame(pollGamepad);
 }
 requestAnimationFrame(pollGamepad);
 

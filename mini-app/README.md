@@ -1,5 +1,9 @@
 # HAPPY JARZ Pi Mini app
 
+## Current Board #3 firmware and website release - November 22, 2026
+
+Windows Board #3 is field-tested on firmware **0.18.14** (nine OLED screensavers including BIG CLOCK, physical arcade games, and working persistent SPIFFS ART uploads). The browser Web Studio at `https://jarz.spiralside.com` now reports the published 0.18.14 release. The **Pi Mini app remains 1.11.2**; no new Pi app version or automatic Pi firmware upgrade is claimed. The Pi Board #4 has independent, uncommitted touch experiments: do not overwrite it by pulling/reflashing indiscriminately. See [project release handoff](../README.md) and [web updater status](../web-controller/README.md).
+
 Current app version: **1.11.2** (see `VERSION`). Matching firmware source: **0.18.5**.
 
 From the repository root, launch with `python3 mini-app/app.py`; the command below is for running inside `mini-app/`.

@@ -25,6 +25,17 @@ A static USB browser controller for the existing SuperMini SIMPLE protocol. No b
 
 ## Experience Manager + Control Mapper (November 22, 2026)
 
+### Experience storage meter (November 22, 2026)
+
+The Experience Manager now has two deliberately distinct displays:
+
+- **Application flash:** exact 0.18.14 verified binary is **1,118,144 bytes** of the **1,310,720-byte app partition** (about **85.3% used**, **192,576 bytes free**). This value is displayed as board-specific only when the connected jar identifies as 0.18.14; other versions are labelled *unmeasured*, not assigned 0.18.14's size. The app is a partition image; it does not include whole-chip bootloader/other partitions.
+- **SPIFFS/Art:** partition capacity **1,441,792 bytes (1,408 KiB)**. The **Refresh artwork slots** button runs the existing `ART COUNT` serial command and displays occupied slots out of 50, plus the known 1,024–2,048 bytes *picture payload* per occupied slot. Firmware 0.18.14 does **not** expose real SPIFFS used/free bytes; that number remains explicitly unknown and cannot be inferred safely from slot count alone.
+- **Per-feature cards:** already compiled features read `Already included · 0 KiB freed if hidden`. BLOOMPETZ/DND/HID read `Not installed · 0 KiB used` on the current edition. This is not a per-module size breakdown: individual linked section footprints require controlled comparison builds with the exact Arduino toolchain and linker settings.
+- The storage read operation is read-only, does not format SPIFFS, erase artwork, or modify NVS. No firmware changes accompany this UI addition.
+
+
+
 **New Web Studio tab: EXPERIENCES + MAPPING.** First-stage browser implementation, not an ESP32 firmware upgrade.
 
 - **Experience presets:** factory Classic, Pet Only, DND player, Business Display, and Everything/Maker. The full list of feature switches is editable. **Simplified navigation** hides deselected *Web Studio tabs*, with the Experiences tab always reachable for recovery. This does not remove compiled firmware, change the on-device menu or uninstall apps.

@@ -56,7 +56,7 @@ export function validateConfig(input){
 export function init(ctx){
  const {$,ack,message,log}=ctx;
  const key='happyjarz-experience-v1';
- let config=DEFAULT_CONFIG,storageOK=true,lastEventAt=0,busy=false,boardId=null;
+ let config=DEFAULT_CONFIG,storageOK=true,lastEventAt=0,busy=false,boardId=null,firmwareVersion=null,artCount=null;
  try{config=validateConfig(JSON.parse(localStorage.getItem(key)||'null'));}catch(e){storageOK=false;config=validateConfig(null);}
  const navIds=['home','setup','display','profile','art','service','updates'];
  const page=$('experience');
@@ -64,6 +64,27 @@ export function init(ctx){
  const bindingState=$('mapping-state');
  const padInputs=new Map();
  const featureInputs=new Map();
+ const APP_TOTAL=0x140000, VERIFIED_APP_BYTES=1118144, ART_TOTAL=0x160000;
+ function kib(value){return (value/1024).toLocaleString('en-US',{maximumFractionDigits:1})+' KiB';}
+ function updateStorage(){
+  const verified=!!ctx.identity && firmwareVersion==='0.18.14';
+  const remaining=APP_TOTAL-VERIFIED_APP_BYTES;
+  $('storage-app-label').textContent=verified
+   ?kib(VERIFIED_APP_BYTES)+' used / '+kib(remaining)+' available'
+   :firmwareVersion?'Firmware '+firmwareVersion+': size not measured':'Connect a jar for verified usage';
+  $('storage-app-fill').style.width=verified?(100*VERIFIED_APP_BYTES/APP_TOTAL).toFixed(2)+'%':'0%';
+  $('storage-app-meter').setAttribute('aria-valuenow',verified?String(Math.round(100*VERIFIED_APP_BYTES/APP_TOTAL)):'0');
+  $('storage-app-detail').textContent=verified
+   ?'85.3% used of '+kib(APP_TOTAL)+' application slot. This is the verified v0.18.14 release image; other firmware versions need their own measurements.'
+   :'Published 0.18.14 uses '+kib(VERIFIED_APP_BYTES)+' of '+kib(APP_TOTAL)+'; connected firmware use is unknown until verified.';
+  $('storage-art-label').textContent=kib(ART_TOTAL)+' partition'+(artCount!==null?' · '+artCount+'/50 art slots':'');
+  $('storage-art-fill').style.width=artCount===null?'0%':(artCount*2)+'%';
+  $('storage-art-meter').setAttribute('aria-valuenow',String(artCount??0));
+  $('storage-art-detail').textContent=artCount===null
+   ?'Art slot occupancy not read. Firmware 0.18.14 does not expose exact SPIFFS free bytes.'
+   :artCount+' of 50 slots occupied. Picture payload can be 1,024–2,048 bytes per slot. Actual filesystem free bytes are not reported; other files and overhead are not included.';
+ }
+
  function save(){
   try{localStorage.setItem(key,JSON.stringify(config));storageOK=true;}
   catch(e){storageOK=false;log('Experience settings could not be stored: '+e.message,'warn','EXPERIENCE');}
@@ -99,7 +120,7 @@ export function init(ctx){
   for(const [name,obj] of padInputs){obj.kind.value=config.bindings[name].kind;obj.value.value=config.bindings[name].value;
    obj.value.disabled=!['KEYBOARD','GAMEPAD','MIDI'].includes(obj.kind.value);
   }
-  applyVisibility();status();
+  applyVisibility();status();updateStorage();
  }
  for(const [id,label] of FEATURES){
   const row=document.createElement('label');row.className='experience-choice';
@@ -110,7 +131,9 @@ export function init(ctx){
   });
   const title=document.createElement('span');title.textContent=label;
   const note=document.createElement('small');
-  note.textContent=['pet','dnd','hid'].includes(id)?'Planned hardware module':'Visible in experience preview';
+  const planned=['pet','dnd','hid'].includes(id);
+  note.textContent=planned?'Not installed · 0 KiB used':'Already included · 0 KiB freed if hidden';
+  note.title=planned?'This module is not in firmware 0.18.14. Size after implementation is not yet known.':'Feature is part of the existing compiled firmware. Its individual size has not been measured.';
   row.append(check,title,note);$('experience-features').append(row);featureInputs.set(id,check);
  }
  for(const [name,pin] of PADS){
@@ -136,6 +159,16 @@ export function init(ctx){
  $('experience-simple').onchange=()=>{config.simple=$('experience-simple').checked;save();render();};
  $('experience-bridge').onchange=()=>{config.bridge=$('experience-bridge').checked;save();render();};
  $('experience-start').onchange=()=>{config.home=$('experience-start').value;save();render();if(!config.simple||config.features.includes(config.home))document.querySelector('[data-tab="'+config.home+'"]')?.click();};
+ $('storage-refresh').onclick=async()=>{
+  if(!ctx.identity){message('Connect the jar before reading art storage.','warn');return;}
+  $('storage-art-detail').textContent='Reading artwork count from jar...';
+  try{
+    const response=await ctx.request('ART COUNT',p=>p.type==='ART'&&p.event==='ACK'&&p.data.event==='COUNT',8000);
+    const count=Number(response.data.count);
+    if(!Number.isInteger(count)||count<0||count>50)throw Error('Invalid artwork slot count from firmware.');
+    artCount=count;updateStorage();message('Artwork slot count received: '+count+' / 50.');
+  }catch(error){artCount=null;updateStorage();message('Could not read art slots: '+error.message,'error');}
+ };
  $('experience-reset').onclick=()=>{
   if(!confirm('Restore the factory Web Studio layout and clear this browser\'s control mappings? Jar data is unaffected.'))return;
   config=validateConfig(DEFAULT_CONFIG);save();render();message('Factory Web Studio layout restored. Jar unchanged.');
@@ -171,7 +204,7 @@ export function init(ctx){
  const safeCommands=new Set(['SAVER NEXT','SAVER PREV','SAVER ENTER','SAVER EXIT','SAVER RESEED','SAVE']);
  return {
   receive({type,data}){
-   if(type==='IDENTITY'){boardId=data.chip||data.serial||'V1';status();}
+   if(type==='IDENTITY'){boardId=data.chip||data.serial||'V1';firmwareVersion=data.fw||null;status();updateStorage();}
    if(type!=='EVENT'||!config.bridge||!ctx.identity||ctx.serviceBusy||ctx.transferring||ctx.connecting||ctx.closing||busy)return;
    // Never echo actions from app KEY commands back into the jar. Physical presses only.
    if(data.source==='host')return; // Native firmware physical events omit source; host KEY events say source=host.
@@ -183,8 +216,8 @@ export function init(ctx){
     .catch(error=>{log('Mapped input failed: '+error.message,'warn','EXPERIENCE');})
     .finally(()=>{busy=false;});
   },
-  reset(){boardId=null;status();},
-  onShow(){status();},
+  reset(){boardId=null;firmwareVersion=null;artCount=null;status();updateStorage();},
+  onShow(){status();updateStorage();},
   getConfiguration(){return structuredClone(config);}
  };
 }

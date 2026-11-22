@@ -54,19 +54,31 @@ $compileErr = Join-Path $out "compile-stderr.log"
 $cliExe = (Get-Command arduino-cli -ErrorAction Stop).Source
 $cliArgs = @("compile", "--fqbn", $fqbn, "--output-dir", $build, $sketch)
 $buildTimer = [System.Diagnostics.Stopwatch]::StartNew()
-$compiler = Start-Process -FilePath $cliExe -ArgumentList $cliArgs -PassThru -NoNewWindow -RedirectStandardOutput $compileOut -RedirectStandardError $compileErr
+# Run CLI in a PowerShell job. Its numeric LASTEXITCODE is returned directly;
+# Start-Process -PassThru can yield a blank ExitCode on Windows PowerShell 5.1.
+$compileJob = Start-Job -ArgumentList $cliExe,$cliArgs,$compileOut,$compileErr -ScriptBlock {
+    param($exe,$argsList,$stdoutPath,$stderrPath)
+    & $exe @argsList 1> $stdoutPath 2> $stderrPath
+    if ($null -eq $LASTEXITCODE) { return 9999 }
+    return [int]$LASTEXITCODE
+}
 try {
-    while (-not $compiler.HasExited) {
+    while ($compileJob.State -eq "Running" -or $compileJob.State -eq "NotStarted") {
         Start-Sleep -Seconds 2
-        $compiler.Refresh()
+        $compileJob = Get-Job -Id $compileJob.Id
         $elapsed = $buildTimer.Elapsed.ToString("mm\:ss")
-        Write-Host ("[BUILD] {0} elapsed - Arduino compiler active..." -f $elapsed) -ForegroundColor DarkCyan
+        Write-Host ("[BUILD] {0} elapsed - Arduino compiler running..." -f $elapsed) -ForegroundColor DarkCyan
     }
-    $compiler.WaitForExit()
-    $exitCode = $compiler.ExitCode
+    $jobState = $compileJob.State
+    $jobResult = @(Receive-Job -Job $compileJob)
+    if ($jobState -ne "Completed" -or $jobResult.Count -ne 1 -or $null -eq $jobResult[0]) {
+        $exitCode = 9999
+    } else {
+        $exitCode = [int]$jobResult[0]
+    }
 } finally {
     $buildTimer.Stop()
-    $compiler.Dispose()
+    Remove-Job -Job $compileJob -Force -ErrorAction SilentlyContinue
 }
 if (Test-Path $compileOut) { Get-Content $compileOut | ForEach-Object { Write-Host $_ } }
 if (Test-Path $compileErr) { Get-Content $compileErr | ForEach-Object { Write-Host $_ -ForegroundColor Yellow } }

@@ -1,5 +1,13 @@
 # HAPPY JARZ Web Studio — development branch
 
+## November 22, 2026 — mapper restore defaults + labeling
+
+- Added a separate **Restore default button mappings** button above the nine-pad mapping grid; confirmation required. It resets all **36 slots** (9 GPIO inputs × 4 slots) to unassigned and turns off browser mapped commands, **without** resetting the Experience Manager layout or changing firmware, NVS, artwork, saved games or OLED menu.
+- Corrected dropdown labels to distinguish **working device commands** from **saved-only keyboard, mouse, virtual gamepad and MIDI output assignments**. Existing Xbox/keyboard-to-Jar input forwarding on the Lights + Control panel is a separate working feature; this mapping UI does not create OS keyboard/mouse/controller output.
+- Saved-only quick presets explicitly say so, rather than suggesting they execute on the desktop. Original browser mapping data migration remains supported.
+- Checked JavaScript parse, 9×4 defaults, legacy single-slot migration, and matching DOM IDs. Physical test of reset button remains pending. This is browser-only; **no ESP32 flash**.
+
+
 ## November 22, 2026 — four-slot button mapper (local Web Studio test)
 
 - Nine physical GPIO inputs: UP 4, DOWN 5, LEFT 9, RIGHT 10, A 1, B 2, L 11, R 12, START 13. Each has **four editable slots** with action and argument dropdowns; old one-slot browser configurations automatically load in slot 1. Existing browser JSON export/import remains supported.

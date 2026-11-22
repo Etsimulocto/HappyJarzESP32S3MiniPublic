@@ -66,3 +66,11 @@ nav [data-tab][hidden]{display:none!important}
 .experience-choice{flex-wrap:wrap;gap:7px 9px}
 .experience-choice span{flex:1 1 110px}
 .experience-choice small{flex:1 0 100%;max-width:none;padding-left:23px;white-space:normal;line-height:1.4}
+
+/* Four-slot mapper: readable per-pad groups with separate action and argument selectors. */
+.mapping-group{border:1px solid var(--line);border-radius:12px;padding:14px;background:rgba(8,13,24,.45);display:grid;gap:8px}
+.mapping-group>strong{font-size:13px;color:var(--mint);letter-spacing:.04em}
+.mapping-group .mapping-row{display:grid;grid-template-columns:70px minmax(190px,1.6fr) minmax(130px,1fr);gap:10px;align-items:center}
+.mapping-group .mapping-row>span{color:var(--muted);font-size:11px;font-weight:700}
+.mapping-group .mapping-row select:disabled{opacity:.55}
+@media(max-width:690px){.mapping-group .mapping-row{grid-template-columns:1fr 1fr}.mapping-group .mapping-row>span{grid-column:1/-1}}

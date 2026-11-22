@@ -1,4 +1,4 @@
-// HAPPY JARZ ESP32-S3 SuperMini firmware v0.18.12
+// HAPPY JARZ ESP32-S3 SuperMini firmware v0.18.14
 // SIMPLE profile: nine capacitive inputs, 128x64 OLED, four APA106 lamps,
 // local games/screensavers, and the HAPPY JARZ USB control protocol.
 //
@@ -35,7 +35,7 @@
 #include "happyjarz_led_types.h"
 
 static const char *HJ_HW_VERSION = "V1";
-static const char *HJ_FW_VERSION = "0.18.13";
+static const char *HJ_FW_VERSION = "0.18.14";
 
 static String hjChipId() {
   char id[13];
@@ -1856,7 +1856,7 @@ static constexpr unsigned long HJ_SCREENSAVER_IDLE_MS = 30000UL;
 static unsigned long hjLastInteractionMs = 0;
 static bool hjScreensaverActive = false;
 static uint8_t hjScreensaverMode = 0;
-static constexpr uint8_t HJ_SCREENSAVER_COUNT = 8;
+static constexpr uint8_t HJ_SCREENSAVER_COUNT = 9;
 static unsigned long hjSaverLastFrameMs = 0;
 static int hjMarqueeX = 128;
 static uint8_t hjSayingIndex = 0;
@@ -2033,14 +2033,15 @@ static const char *hjSaverModeName() {
   if (hjScreensaverMode == 4) return "BLOOM";
   if (hjScreensaverMode == 5) return "BREATHE";
   if (hjScreensaverMode == 6) return "GLITTER";
-  return "ART";
+  if (hjScreensaverMode == 7) return "ART";
+  return "BIG CLOCK";
 }
 
 static void hjSaverReseedCurrent() {
   if (hjScreensaverMode == 1) hjReseedSpiral();
   else if (hjScreensaverMode == 2) hjReseedTrippy();
   else if (hjScreensaverMode == 3) hjReseedParticles();
-  else if (hjScreensaverMode >= 4) hjReseedVisualSaver();
+  else if (hjScreensaverMode >= 4 && hjScreensaverMode <= 6) hjReseedVisualSaver();
 }
 
 static void hjSaverPrepareCurrent() {
@@ -2050,7 +2051,7 @@ static void hjSaverPrepareCurrent() {
     hjMarqueeX = 128;
   } else if (hjScreensaverMode == 7) {
     hjArtEnterSaver();
-  } else {
+  } else if (hjScreensaverMode != 8) {
     hjSaverReseedCurrent();
   }
   oledDirty = true;
@@ -2903,7 +2904,7 @@ static void hjScreensaverNext() {
   hjPickNextSaying();
   hjArtStep = 0;
   if (hjScreensaverMode == 3) hjReseedParticles();
-  if (hjScreensaverMode >= 4) hjReseedVisualSaver();
+  if (hjScreensaverMode >= 4 && hjScreensaverMode <= 6) hjReseedVisualSaver();
   if (hjScreensaverMode == 7) hjArtEnterSaver();
   oledDirty = true;
 }
@@ -2913,7 +2914,7 @@ static void hjScreensaverPrev() {
   hjPickNextSaying();
   hjArtStep = 0;
   if (hjScreensaverMode == 3) hjReseedParticles();
-  if (hjScreensaverMode >= 4) hjReseedVisualSaver();
+  if (hjScreensaverMode >= 4 && hjScreensaverMode <= 6) hjReseedVisualSaver();
   if (hjScreensaverMode == 7) hjArtEnterSaver();
   oledDirty = true;
 }
@@ -3098,6 +3099,37 @@ static void oledRenderBirthdayScene(uint8_t scene) {
   oled->setFont(u8g2_font_6x12_tr);
 }
 
+// Large readable clock, owned by the existing local screensaver engine.
+// Time is taken from the configured local TZ. Never display invented time.
+static void oledRenderSaverBigClock() {
+  if (!clockSynced()) {
+    oled->setFont(u8g2_font_6x12_tr);
+    oled->drawStr(31, 26, "SET CLOCK");
+    oled->setFont(u8g2_font_5x8_tf);
+    oled->drawStr(13, 46, "SYNC TIME IN WEB STUDIO");
+    return;
+  }
+  time_t now = time(nullptr);
+  struct tm local;
+  if (localtime_r(&now, &local) == nullptr) {
+    oled->setFont(u8g2_font_6x12_tr);
+    oled->drawStr(31, 33, "SET CLOCK");
+    return;
+  }
+  char timeText[9], dateText[20];
+  strftime(timeText, sizeof(timeText), "%I:%M", &local);
+  if (timeText[0] == '0') memmove(timeText, timeText + 1, strlen(timeText));
+  strftime(dateText, sizeof(dateText), "%a %b %d", &local);
+  oled->setFont(u8g2_font_logisoso24_tn);
+  int16_t timeWidth = oled->getStrWidth(timeText);
+  oled->drawStr((128 - timeWidth) / 2, 35, timeText);
+  oled->setFont(u8g2_font_6x12_tr);
+  int16_t dateWidth = oled->getStrWidth(dateText);
+  oled->drawStr((128 - dateWidth) / 2, 56, dateText);
+  oled->setFont(u8g2_font_5x8_tf);
+  oled->drawStr(110, 34, local.tm_hour < 12 ? "AM" : "PM");
+}
+
 static void oledRenderScreensaver() {
   int8_t birthdayScene = hjBirthdayScene();
   if (birthdayScene >= 0) {
@@ -3112,7 +3144,9 @@ static void oledRenderScreensaver() {
     case 4: oledRenderSaverBloom(); break;
     case 5: oledRenderSaverBreathe(); break;
     case 6: oledRenderSaverGlitter(); break;
-    default: hjArtRender(oled); break;
+    case 7: hjArtRender(oled); break;
+    case 8: oledRenderSaverBigClock(); break;
+    default: oledRenderSaverSayings(); break;
   }
 }
 
@@ -3761,7 +3795,8 @@ static void serviceOled() {
     oledDirty = true;
   }
 
-  unsigned long cadence = (hjScreensaverActive || (hjStartupCountdownActive && hjStartupCountdownDays == 0)) ? 45UL : 250UL;
+  unsigned long cadence = hjScreensaverActive && hjScreensaverMode == 8 ? 500UL :
+                           (hjScreensaverActive || (hjStartupCountdownActive && hjStartupCountdownDays == 0)) ? 45UL : 250UL;
   if (!oledDirty && now - oledLastDrawMs < cadence) return;
   oledLastDrawMs = now;
   oledDirty = false;
@@ -3778,7 +3813,7 @@ static void serviceOled() {
     else if (hjScreensaverMode == 3) {
       for (uint8_t ps=0; ps<hjParticleSpeed; ++ps) hjParticleStepOnce();
       hjArtStep++;
-    } else {
+    } else if (hjScreensaverMode >= 4 && hjScreensaverMode <= 6) {
       hjArtStep += hjVisualSpeed;
     }
   } else {
@@ -4093,7 +4128,7 @@ static void serviceInputs() {
       if (q[IN_UP] && !latched[IN_UP]) { if (hjParticleSpeed < 8) hjParticleSpeed++; }
       else if (q[IN_DOWN] && !latched[IN_DOWN]) { if (hjParticleSpeed > 1) hjParticleSpeed--; }
       else if (q[IN_A] && !latched[IN_A]) { hjReseedParticles(); }
-    } else if (hjScreensaverMode >= 4) {
+    } else if (hjScreensaverMode >= 4 && hjScreensaverMode <= 6) {
       if (q[IN_UP] && !latched[IN_UP]) { if (hjVisualSpeed < 8) hjVisualSpeed++; }
       else if (q[IN_DOWN] && !latched[IN_DOWN]) { if (hjVisualSpeed > 1) hjVisualSpeed--; }
       else if (q[IN_A] && !latched[IN_A]) { hjReseedVisualSaver(); }
@@ -4431,14 +4466,14 @@ static void handleCommand(String line) {
     if(hjScreensaverMode==1 && hjSpiralSpeed<8) hjSpiralSpeed++;
     else if(hjScreensaverMode==2 && hjTrippySpeed<8) hjTrippySpeed++;
     else if(hjScreensaverMode==3 && hjParticleSpeed<8) hjParticleSpeed++;
-    else if(hjScreensaverMode>=4 && hjVisualSpeed<8) hjVisualSpeed++;
+    else if(hjScreensaverMode>=4 && hjScreensaverMode<=6 && hjVisualSpeed<8) hjVisualSpeed++;
     ack("SAVER SPEED UP"); hjPrintSaverStatus(); return;
   }
   if(line=="SAVER SPEED DOWN"){
     if(hjScreensaverMode==1 && hjSpiralSpeed>1) hjSpiralSpeed--;
     else if(hjScreensaverMode==2 && hjTrippySpeed>1) hjTrippySpeed--;
     else if(hjScreensaverMode==3 && hjParticleSpeed>1) hjParticleSpeed--;
-    else if(hjScreensaverMode>=4 && hjVisualSpeed>1) hjVisualSpeed--;
+    else if(hjScreensaverMode>=4 && hjScreensaverMode<=6 && hjVisualSpeed>1) hjVisualSpeed--;
     ack("SAVER SPEED DOWN"); hjPrintSaverStatus(); return;
   }
   if(line.startsWith("SET SAVER MODE ")){
@@ -4451,7 +4486,8 @@ static void handleCommand(String line) {
     else if(v=="BREATHE") hjSaverSetMode(5,true);
     else if(v=="GLITTER") hjSaverSetMode(6,true);
     else if(v=="ART") hjSaverSetMode(7,true);
-    else {err("saver mode must be SAYINGS SPIRAL TRIPPY PARTICLES BLOOM BREATHE GLITTER or ART");return;}
+    else if(v=="BIG CLOCK") hjSaverSetMode(8,true);
+    else {err("saver mode must be SAYINGS SPIRAL TRIPPY PARTICLES BLOOM BREATHE GLITTER ART or BIG CLOCK");return;}
     ack("SET SAVER MODE"); hjPrintSaverStatus(); return;
   }
   if(line=="SAVE"){persistSettings();ack("SAVE");return;}

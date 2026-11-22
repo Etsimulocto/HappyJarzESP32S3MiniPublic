@@ -1,4 +1,14 @@
-# HAPPY JARZ Web Studio — draft 0.13
+# HAPPY JARZ Web Studio — development branch
+
+## November 22, 2026 — Experience Manager/UI cleanup (development branch)
+
+- Browser Experience feature cards now distinguish **installed-on-jar firmware** from **browser-only visibility**. BLOOMPETZ 0.18.16+ and DND 0.18.17+ are recognized; native USB HID/MIDI remains unimplemented and is distinct from browser Xbox controller forwarding. Hiding a section still frees **0 KiB** of flashed firmware.
+- Added **Read/Show/Hide DND** controls using exact `GET DND MODULE` and `SET DND MODULE ON/OFF` firmware commands and acknowledgement checks, separate from original 8-bit OLED menu mask. Existing BLOOMPETZ module controls remain; `RESET MODULES` restores factory menu visibility without deleting saves.
+- Storage summary now shows measured **0.18.17 sketch size of 1,169,301 bytes** against the 1,310,720-byte app slot; other unmeasured versions remain explicitly unknown. Artwork occupancy is not falsely represented as actual free SPIFFS bytes.
+- Newer experimental installed builds get explicit updater wording: **0.18.17 installed vs latest approved 0.18.15** is expected, downgrade disabled. **No 0.18.17 release published** and no updater safety guard relaxed.
+- First-time setup is collapsed until opened. Old instructions describing DND as nonexistent and Start as unused were corrected. This is a **Web Studio-only patch**; no ESP32 reflash.
+- Source JavaScript syntax for `web-controller/tabs/experience.js` was checked. Browser/USB interaction and regression tests still require a local run before any public deployment.
+
 
 ## November 22, 2026 — BLOOMPETZ + DND hardware-test handoff (latest)
 

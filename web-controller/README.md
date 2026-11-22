@@ -23,6 +23,28 @@ The publisher checks the staged **exact known 0.18.14 SHA-256 and size** before 
 
 A static USB browser controller for the existing SuperMini SIMPLE protocol. No backend, account, Python installation, or paid domain required for website users. This is a development implementation with initial PC hardware results, not a fully verified replacement for the Mini app.
 
+## Unreleased 0.18.15 candidate - real OLED menu visibility
+
+**Not published, flashed or compiled yet.** The latest feature branch now contains an experimental 0.18.15 firmware source and matching Web Studio controls. The stable public release entry and exact `0.18.14` application binary are unchanged.
+
+Firmware menu: eight original OLED entries map to bits **0 CLOCK, 1 LIGHTS, 2 GAMES, 3 SETTINGS, 4 POWER, 5 SYSTEM, 6 INFO, 7 PROFILE**. `SYSTEM` bit 5 is enforced ON in RAM, reads and writes; the menu list dynamically skips hidden entries while selection preserves the original item-to-screen mapping. It persists one byte in existing `happyjarz` Preferences under `menu_mask`; existing NVS, art, Wi-Fi and owner values are not intentionally cleared. On first upgrade with no `menu_mask`, all original menu entries remain visible.
+
+Commands supported by **candidate firmware only**:
+
+```text
+GET MODULES
+HJ|MODULES|menu_mask=255|system_locked=1|arcade=1|bloompetz=0|dnd=0|hid=0
+SET MODULES 36
+HJ|ACK|command=SET MODULES
+HJ|MODULES|menu_mask=36|system_locked=1|arcade=1|bloompetz=0|dnd=0|hid=0
+RESET MODULES
+HJ|ACK|command=RESET MODULES
+```
+
+Example mask 36 shows GAMES + SYSTEM. This is **menu visibility only** and does not reclaim bytes, install/remove modules, or suppress underlying physical HOME actions. Existing touch/USB interface behavior is unchanged. Web Studio's new On-device OLED menu section is version gated to **0.18.15+**, supports read/apply/restore and demands an explicit confirmation before applying.
+
+Before any board installation: compile on **ESP32 Arduino core 3.3.12** with the usual 4MB partition settings, run host tests, back up Board #3 NVS/SPIFFS again, and test menu navigation at masks 255, 32, 36, 128, 0 (SYSTEM remains), full power cycle/persistence and RESET MODULES, as well as normal art, seven arcade games, lights, clock, USB Web Studio and update compatibility. Do not alter the released catalog until a **verified** app build has passed hardware testing.
+
 ## Experience Manager + Control Mapper (November 22, 2026)
 
 ### Experience storage meter (November 22, 2026)

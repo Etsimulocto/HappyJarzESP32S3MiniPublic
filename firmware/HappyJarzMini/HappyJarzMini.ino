@@ -4646,7 +4646,10 @@ void loop(){
   serviceTimer();
   if(HJPet::running()){
     HJPet::service();
-    if(uiScreen==UI_BLOOMPETZ)oledDirty=true;
+    static unsigned long hjPetOledFrameMs=0;
+    if(uiScreen==UI_BLOOMPETZ && millis()-hjPetOledFrameMs>=250){
+      hjPetOledFrameMs=millis();oledDirty=true;
+    }
   }
   serviceStartupBirthdayCountdown();
   if (hjArcadeActive() && !hjSleepActive && !hjStartupCountdownActive) hjArcadeService(millis());

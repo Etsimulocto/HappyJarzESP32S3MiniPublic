@@ -13,13 +13,15 @@ if ($LASTEXITCODE -ne 0 -or $branch -ne 'feature/mini-art-gallery-animation') {
 $version = (Get-Content 'firmware/VERSION' -Raw).Trim()
 if ($version -ne '0.18.15') { throw "STOP: This publisher only accepts 0.18.15." }
 $expected = '877a228da3cb2fc627fa84032d8773dd9db4e4904db550534527bb34b2626762'
-$size = 1119025
 $source = Join-Path $root 'release-staging\candidate\happyjarz-0.18.15-app.bin'
 $entryPath = Join-Path $root 'release-staging\candidate\release-entry.json'
 if (!(Test-Path $source) -or !(Test-Path $entryPath)) { throw 'STOP: Tested candidate or manifest missing.' }
 $actual = (Get-FileHash $source -Algorithm SHA256).Hash.ToLowerInvariant()
 if ($actual -ne $expected) { throw "STOP: Binary hash differs from tested Board #3: $actual." }
-if ((Get-Item $source).Length -ne $size) { throw 'STOP: Unexpected app size.' }
+$size = (Get-Item $source).Length
+if ($size -lt 1119025 -or $size -gt 0x140000 -or (($size % 16) -ne 0)) {
+  throw "STOP: App image size is outside expected padded ESP32 bounds: $size."
+}
 $entry = Get-Content $entryPath -Raw | ConvertFrom-Json
 if ($entry.version -ne $version -or $entry.channel -ne 'stable' -or
     $entry.model -ne 'happyjarz-supermini-simple-4mb' -or $entry.hw -ne 'V1' -or

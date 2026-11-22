@@ -166,6 +166,7 @@ export function init(ctx){
   config.bindings=Object.fromEntries(PADS.map(([n])=>{const [kind,v]=quickProfiles[value][n];return [n,{kind,value:v}];}));
   save();render();message('Mapping preset saved in browser. Future HID/MIDI mappings are not active yet.');
  };
+ render();
  const safeCommands=new Set(['SAVER NEXT','SAVER PREV','SAVER ENTER','SAVER EXIT','SAVER RESEED','SAVE']);
  return {
   receive({type,data}){

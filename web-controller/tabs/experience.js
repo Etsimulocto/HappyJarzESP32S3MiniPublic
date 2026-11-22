@@ -70,7 +70,7 @@ export function init(ctx){
  let deviceMenuMask=null,deviceMenuKnown=false;
  function supportsDeviceMenu(){
    const fw=firmwareVersion;
-   if(!fw || !/^\\d+\\.\\d+\\.\\d+$/.test(fw))return false;
+   if(!fw || !/^\d+\.\d+\.\d+$/.test(fw))return false;
    const [a,b,c]=fw.split('.').map(Number);
    return a>0 || (a===0 && (b>18 || (b===18 && c>=15)));
  }

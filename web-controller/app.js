@@ -154,7 +154,7 @@ const ctx={ $, ack, query, request, action, controls, message, log, diagnostics,
 };
 controls();
 for(const [id,file] of [['home','lights-control'],['setup','wifi-clock'],['display','display-input'],['profile','profile'],['art','art'],['service','service'],['updates','updates'],['experience','experience']]){
-  try{const {init}=await import(`./tabs/${file}.js`);panels[id]=init(ctx);}catch(error){log(`Panel ${id} failed to initialize: ${error.stack || error.message}`,'error','PANEL');document.querySelector(`[data-tab="${id}"]`).disabled=true;message(`The ${id} panel could not load. See the Service log.`,'error');}
+  try{const {init}=await import(`./tabs/${file}.js?v=mapper4-20261122`);panels[id]=init(ctx);}catch(error){log(`Panel ${id} failed to initialize: ${error.stack || error.message}`,'error','PANEL');document.querySelector(`[data-tab="${id}"]`).disabled=true;message(`The ${id} panel could not load. See the Service log.`,'error');}
 }
 try{panels.monday=initMonday(ctx);}catch(error){log(error.message,'error','MONDAY');}
 try{panels.background=initBackground(ctx);}catch(error){log(error.message,'error','BACKGROUND');}

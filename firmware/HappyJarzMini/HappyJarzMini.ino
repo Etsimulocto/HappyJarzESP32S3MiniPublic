@@ -27,6 +27,7 @@
 #include <Wire.h>
 #include <U8g2lib.h>
 #include "happyjarz_arcade.h"
+#include "happyjarz_bloompetz.h"
 #include "happyjarz_art.h"
 #include <math.h>
 #include <time.h>
@@ -35,7 +36,7 @@
 #include "happyjarz_led_types.h"
 
 static const char *HJ_HW_VERSION = "V1";
-static const char *HJ_FW_VERSION = "0.18.15";
+static const char *HJ_FW_VERSION = "0.18.16";
 
 static String hjChipId() {
   char id[13];
@@ -343,19 +344,22 @@ static String ownerBirthday = "--";
 // Menu visibility: 8 original entries. SYSTEM is always available for recovery.
 // Hiding menu entries does NOT remove compiled functions or recover flash bytes.
 static constexpr uint8_t HJ_MENU_ALL = 0xFF;
+// BloomPetz is an optional ninth entry. The 0.18.15 8-bit menu mask is
+// preserved unchanged, including all custom menu choices.
+static bool hjPetVisible = true;
 static constexpr uint8_t HJ_MENU_SYSTEM_BIT = 1U << 5;
 static uint8_t hjMenuMask = HJ_MENU_ALL;
 static uint8_t hjMenuCount() {
   uint8_t count=0;
   for(uint8_t i=0;i<8;++i) if(hjMenuMask & (1U<<i)) count++;
-  return count;
+  return count + (hjPetVisible ? 1 : 0);
 }
 static uint8_t hjMenuIdAt(uint8_t visibleIndex) {
   for(uint8_t i=0;i<8;++i) if(hjMenuMask & (1U<<i)) {
     if(!visibleIndex) return i;
     --visibleIndex;
   }
-  return 5; // SYSTEM recovery fallback
+  return hjPetVisible ? 8 : 5; // optional ninth entry or SYSTEM fallback
 }
 static uint8_t hjMenuIndexNext(uint8_t index, int8_t delta) {
   uint8_t count=hjMenuCount();
@@ -417,6 +421,7 @@ static void loadSettings() {
   ownerName = prefs.getString("owner_name", "");
   ownerBirthday = prefs.getString("owner_bday", "--");
   hjMenuMask = prefs.getUChar("menu_mask", HJ_MENU_ALL) | HJ_MENU_SYSTEM_BIT;
+  hjPetVisible = prefs.getBool("pet_menu", true);
   inputMode = "JAR";
   prefs.end();
 }
@@ -441,6 +446,7 @@ static void persistSettings() {
   prefs.putString("owner_name", ownerName);
   prefs.putString("owner_bday", ownerBirthday);
   prefs.putUChar("menu_mask", hjMenuMask);
+  prefs.putBool("pet_menu", hjPetVisible);
   prefs.end();
 }
 
@@ -1578,7 +1584,8 @@ enum UiScreen : uint8_t {
   UI_SYSTEM,
   UI_POWER,
   UI_INFO,
-  UI_PROFILE
+  UI_PROFILE,
+  UI_BLOOMPETZ
 };
 static UiScreen uiScreen = UI_HOME;
 static uint8_t uiCursor = 0;
@@ -3367,7 +3374,7 @@ static void oledRenderHome() {
 }
 
 static void oledRenderMainMenu() {
-  static const char *items[] = {"CLOCK", "LIGHTS", "GAMES", "SETTINGS", "POWER", "SYSTEM", "INFO", "PROFILE"};
+  static const char *items[] = {"CLOCK", "LIGHTS", "GAMES", "SETTINGS", "POWER", "SYSTEM", "INFO", "PROFILE", "BLOOMPETZ"};
   uint8_t count = hjMenuCount();
   if (uiCursor >= count) uiCursor = 0;
   if (uiCursor < uiScroll) uiScroll = uiCursor;
@@ -3802,7 +3809,9 @@ static void uiSelectMain() {
     case 4: uiScreen = UI_POWER; break;
     case 5: uiScreen = UI_SYSTEM; break;
     case 6: infoPage = 0; uiScreen = UI_INFO; break;
-    default: profileMenuCursor = 0; profileEditor = 0; uiScreen = UI_PROFILE; break;
+    case 7: profileMenuCursor = 0; profileEditor = 0; uiScreen = UI_PROFILE; break;
+    case 8: HJPet::enter(); uiScreen = UI_BLOOMPETZ; break;
+    default: uiScreen = UI_SYSTEM; break;
   }
   oledDirty = true;
 }
@@ -3812,7 +3821,7 @@ static void serviceOled() {
   if (hjAccessoryPaused) return;
   if (!oledReady || !oled) return;
   unsigned long now = millis();
-  serviceScreensaverClock();
+  if (uiScreen != UI_BLOOMPETZ) serviceScreensaverClock();
   if (hjStartupCountdownActive &&
       (long)(millis() - hjStartupCountdownUntilMs) >= 0) {
     hjStartupCountdownActive = false;
@@ -3848,6 +3857,10 @@ static void serviceOled() {
       case UI_PROFILE: oledRenderProfile(); break;
       case UI_LIGHTS: oledRenderLights(); break;
       case UI_GAMES: oledRenderGames(); break;
+      case UI_BLOOMPETZ:
+        HJPet::draw();
+        for(uint8_t line=0;line<4;++line) oledCentered(13+line*16,HJPet::lines[line]);
+        break;
       case UI_SETTINGS: oledRenderSettings(); break;
       case UI_POWER: oledRenderPower(); break;
     case UI_INFO: oledRenderInfo(); break;
@@ -3975,6 +3988,18 @@ static void serviceInputs() {
 
   hjServiceShoulderBrightness(q);
   hjEmitExtraInputEvents(q);
+
+  // Pet screen owns the six D-pad/A/B controls, not the factory arcade.
+  // Menu selection and long B/USB KEY flow remain normal elsewhere.
+  if (inputMode == "JAR" && uiScreen == UI_BLOOMPETZ) {
+    for(uint8_t i=0;i<6;++i) if(q[i]&&!latched[i]){
+      HJPet::button(i);
+      oledDirty=true;
+    }
+    if(!HJPet::running())uiOpenMainMenu();
+    for(uint8_t i=0;i<INPUT_COUNT;++i)latched[i]=q[i];
+    return;
+  }
 
   if (!hjArcadeActive() && !hjScreensaverActive && uiScreen == UI_GAMES &&
       q[IN_A] && !latched[IN_A]) {
@@ -4336,10 +4361,28 @@ static void handleCommand(String line) {
     printProfile();
     return;
   }
+  if(line=="GET PET STATUS"){
+    HJPet::load();
+    const auto &pet=HJPet::pets[HJPet::slot];
+    Serial.printf("HJ|PET|slot=%u|occupied=%u|name=%s|energy=%.1f|actions=%u|treats=%u\\n",HJPet::slot+1,pet.occupied?1:0,pet.name,pet.foodEnergy,pet.dailyActionMask,pet.treatsToday);
+    return;
+  }
   if(line=="GET STATUS"){Serial.println(statusLine());return;}
   if(line=="GET CAPS"){hjPrintCaps();return;}
+  if(line=="GET PET MODULE"){
+    Serial.printf("HJ|PETMODULE|installed=1|visible=%u|slots=3|stats=200|dnd=0\\n",hjPetVisible?1:0);
+    return;
+  }
+  if(line=="SET PET MODULE ON"||line=="SET PET MODULE OFF"){
+    hjPetVisible=(line=="SET PET MODULE ON");
+    prefs.begin("happyjarz",false);prefs.putBool("pet_menu",hjPetVisible);prefs.end();
+    if(!hjPetVisible && uiScreen==UI_BLOOMPETZ){HJPet::leave();uiGoHome();}
+    else uiGoHome();
+    ack("SET PET MODULE");
+    return;
+  }
   if(line=="GET MODULES"){
-    Serial.printf("HJ|MODULES|menu_mask=%u|system_locked=1|arcade=1|bloompetz=0|dnd=0|hid=0\n",(unsigned)hjMenuMask);
+    Serial.printf("HJ|MODULES|menu_mask=%u|system_locked=1|arcade=1|bloompetz=1|dnd=0|hid=0\n",(unsigned)hjMenuMask);
     return;
   }
   if(line=="RESET MODULES"){
@@ -4347,8 +4390,10 @@ static void handleCommand(String line) {
     prefs.begin("happyjarz", false);
     prefs.putUChar("menu_mask", hjMenuMask);
     prefs.end();
+    hjPetVisible=true;
+    prefs.begin("happyjarz",false);prefs.putBool("pet_menu",true);prefs.end();
     uiGoHome();ack("RESET MODULES");
-    Serial.printf("HJ|MODULES|menu_mask=%u|system_locked=1|arcade=1|bloompetz=0|dnd=0|hid=0\n",(unsigned)hjMenuMask);
+    Serial.printf("HJ|MODULES|menu_mask=%u|system_locked=1|arcade=1|bloompetz=1|dnd=0|hid=0\n",(unsigned)hjMenuMask);
     return;
   }
   if(line.startsWith("SET MODULES ")){
@@ -4362,7 +4407,7 @@ static void handleCommand(String line) {
     prefs.putUChar("menu_mask",hjMenuMask);
     prefs.end();
     uiGoHome();ack("SET MODULES");
-    Serial.printf("HJ|MODULES|menu_mask=%u|system_locked=1|arcade=1|bloompetz=0|dnd=0|hid=0\n",(unsigned)hjMenuMask);
+    Serial.printf("HJ|MODULES|menu_mask=%u|system_locked=1|arcade=1|bloompetz=1|dnd=0|hid=0\n",(unsigned)hjMenuMask);
     return;
   }
   if(line=="GET LED FRAME"){hjEmitLedFrameNow();return;}
@@ -4599,6 +4644,10 @@ void loop(){
   servicePattern();
   serviceAlarm();
   serviceTimer();
+  if(HJPet::running()){
+    HJPet::service();
+    if(uiScreen==UI_BLOOMPETZ)oledDirty=true;
+  }
   serviceStartupBirthdayCountdown();
   if (hjArcadeActive() && !hjSleepActive && !hjStartupCountdownActive) hjArcadeService(millis());
   else serviceOled();

@@ -90,16 +90,16 @@ static void draw(){
   if(!active)return;
   PetSave &p=pets[slot];
   if(mode==CONFIRM_CREATE){
-    line(0,"CREATE PET - SLOT "+String(slot+1));
+    line(0,String(pets[slot].occupied?"REPLACE PET? SLOT ":"CREATE PET - SLOT ")+String(slot+1));
     line(1,"Default: SPARK");
-    line(2,"A CREATE  B CANCEL");
+    line(2,"A CONFIRM B CANCEL");
     line(3,"3 slots / 200 stats");return;
   }
   if(!p.occupied){
     line(0,"BLOOMPETZ - SLOT "+String(slot+1));
     line(1,"EMPTY PET SLOT");
-    line(2,"A CREATE");
-    line(3,"B MENU");return;
+    line(2,"A CREATE  LT/RT SLOT");
+    line(3,"B EXIT");return;
   }
   if(mode==HOME){
     line(0,String(p.art));
@@ -199,7 +199,9 @@ static void button(uint8_t b){// 0 up, 1 down, 2 left, 3 right, 4 A, 5 B
   }
   if(!p.occupied){
     if(b==4){mode=CONFIRM_CREATE;draw();}
-    else if(b==5){slot=(slot+1)%SLOTS;mode=HOME;draw();}
+    else if(b==2){slot=(slot+SLOTS-1)%SLOTS;draw();}
+    else if(b==3){slot=(slot+1)%SLOTS;draw();}
+    else if(b==5){leave();return;}
     return;
   }
   p.lifetimeTouches++;

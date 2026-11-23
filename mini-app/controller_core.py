@@ -44,7 +44,7 @@ SCAN_SECONDS = 1.0
 # Opening the ESP32-S3 CDC/JTAG port can reset the chip. The Mini takes about
 # 1.5 seconds to calibrate its touch inputs before it starts answering HELLO,
 # so keep DTR/RTS inactive and allow enough time for setup to finish.
-HANDSHAKE_TIMEOUT = 4.0
+HANDSHAKE_TIMEOUT = 12.0
 HELLO_RETRY_SECONDS = 0.25
 LOG_DIR = Path.home() / ".happyjarz"
 LOG_FILE = LOG_DIR / "controller.log"
@@ -70,6 +70,7 @@ class JarSerial:
         self.port_name: str | None = None
         self.running = True
         self.lock = threading.Lock()
+        self.art_responses: queue.Queue[str] = queue.Queue()
         self.reader_thread: threading.Thread | None = None
         threading.Thread(target=self._scan_loop, daemon=True).start()
 
@@ -94,6 +95,7 @@ class JarSerial:
                     write_timeout=0.5,
                     dsrdtr=False,
                     rtscts=False,
+                    exclusive=(os.name == "posix"),
                 )
                 # Older PySerial on Raspberry Pi rejects dtr/rts constructor kwargs.
                 # Set both control lines inactive while closed, before opening the port.
@@ -101,7 +103,7 @@ class JarSerial:
                 probe.rts = False
                 probe.port = port.device
                 probe.open()
-                time.sleep(0.10)
+                time.sleep(1.50)
                 probe.reset_input_buffer()
                 deadline = time.monotonic() + HANDSHAKE_TIMEOUT
                 next_hello = 0.0
@@ -133,18 +135,37 @@ class JarSerial:
                 continue
 
     def _reader_loop(self):
-        while self.running and self.ser is not None and self.ser.is_open:
+        # Keep this reader tied to the connection it was created for.
+        with self.lock:
+            ser = self.ser
+
+        while self.running and ser is not None:
             try:
-                raw = self.ser.readline()
+                # Serialize reads with writes and close(). The short serial
+                # timeout keeps this lock hold brief and prevents pySerial's
+                # file descriptor from being cleared during readline().
+                with self.lock:
+                    if self.ser is not ser or not ser.is_open:
+                        break
+                    raw = ser.readline()
+
                 if not raw:
                     continue
                 line = raw.decode("utf-8", errors="replace").strip()
                 if line:
+                    if line.startswith("HJ|ART|ACK|") or line.startswith("HJ|ERR|"):
+                        self.art_responses.put(line)
+                    if line.startswith("HJ|ART|ACK|event=DATA|"):
+                        continue
                     self._emit("line", line)
-            except (serial.SerialException, OSError) as exc:
-                self._emit("log", f"Serial connection lost: {exc}")
+            except (serial.SerialException, OSError, TypeError) as exc:
+                # POSIX pySerial can raise TypeError from os.read(fd=None)
+                # if a USB device disappears during a read.
+                if self.running:
+                    self._emit("log", f"Serial connection lost: {exc}")
                 break
-        self._disconnect_internal()
+
+        self._disconnect_internal(ser)
 
     @staticmethod
     def _safe_log_command(command: str) -> str:
@@ -155,26 +176,60 @@ class JarSerial:
 
     def send(self, command: str):
         command = command.strip()
+        failed_ser = None
         with self.lock:
-            if not self.ser or not self.ser.is_open:
+            ser = self.ser
+            if not ser or not ser.is_open:
                 self._emit("log", f"Not connected; command skipped: {self._safe_log_command(command)}")
                 return False
             try:
-                self.ser.write((command + "\n").encode("utf-8"))
-                self.ser.flush()
-                self._emit("tx", self._safe_log_command(command))
+                ser.write((command + "\n").encode("utf-8"))
+                ser.flush()
+                if not command.startswith("ART DATA "):
+                    self._emit("tx", self._safe_log_command(command))
                 return True
-            except (serial.SerialException, OSError) as exc:
+            except (serial.SerialException, OSError, TypeError) as exc:
                 self._emit("log", f"Write failed: {exc}")
-                self._disconnect_internal()
-                return False
+                failed_ser = ser
 
-    def _disconnect_internal(self):
-        old_port = self.port_name
+        # Disconnect outside the lock and only if this is still the same handle.
+        self._disconnect_internal(failed_ser)
+        return False
+
+    def send_wait(self, command: str, timeout: float = 5.0) -> str:
+        """Send one art-transfer command and wait for its device ACK."""
+        while True:
+            try:
+                self.art_responses.get_nowait()
+            except queue.Empty:
+                break
+        if not self.send(command):
+            raise RuntimeError("Jar is not connected")
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            try:
+                line = self.art_responses.get(timeout=max(0.05, deadline - time.monotonic()))
+            except queue.Empty:
+                break
+            if line.startswith("HJ|ERR|"):
+                raise RuntimeError(line)
+            if line.startswith("HJ|ART|ACK|"):
+                return line
+        raise TimeoutError(f"No Jar response for {command.split()[1] if len(command.split()) > 1 else command}")
+
+    def _disconnect_internal(self, expected_ser: serial.Serial | None = None):
         with self.lock:
-            if self.ser is not None:
+            # A reader or writer may report an old connection after the scan
+            # loop has already attached a replacement. Never close that new
+            # connection in response to a stale thread.
+            if expected_ser is not None and self.ser is not expected_ser:
+                return
+
+            ser = self.ser
+            old_port = self.port_name
+            if ser is not None:
                 try:
-                    self.ser.close()
+                    ser.close()
                 except Exception:
                     pass
             self.ser = None
@@ -196,6 +251,7 @@ class HappyJarzApp(tk.Tk):
         self.configure(bg=BG)
 
         LOG_DIR.mkdir(parents=True, exist_ok=True)
+        self._identity_refreshes: set[str] = set()
         self.events: queue.Queue = queue.Queue()
         self.link = JarSerial(self.events)
 
@@ -204,6 +260,7 @@ class HappyJarzApp(tk.Tk):
         self.input_names = ("up", "down", "left", "right", "a", "b", "x", "y", "l", "r", "start", "select")
         self.simple_inputs = {"up", "down", "left", "right", "a", "b"}
         self.touch_vars = {k: tk.StringVar(value="—") for k in self.input_names}
+        self._last_input_received = 0.0
         self.input_tiles = {}
         self.input_name_labels = {}
         self.input_value_labels = {}
@@ -315,6 +372,7 @@ class HappyJarzApp(tk.Tk):
         self._build_header(root)
 
         notebook = ttk.Notebook(root)
+        self.notebook = notebook
         notebook.pack(fill="both", expand=True)
 
         control = ttk.Frame(notebook, padding=8)
@@ -422,7 +480,7 @@ class HappyJarzApp(tk.Tk):
         head = ttk.Frame(inputbox, style="Panel.TFrame")
         head.grid(row=0, column=0, columnspan=6, sticky="ew", pady=(0, 5))
         ttk.Label(head, text="GAMEPAD INPUT  •  LIVE TOUCH / USB STATE", style="Section.TLabel").pack(side="left")
-        ttk.Label(head, text="FULL controls stay visible on SIMPLE", style="PanelMuted.TLabel").pack(side="right")
+        ttk.Label(head, text="Available controls follow Jar capabilities", style="PanelMuted.TLabel").pack(side="right")
 
         controls = (
             ("↑ UP", "up"), ("↓ DOWN", "down"), ("← LEFT", "left"), ("→ RIGHT", "right"),
@@ -518,7 +576,7 @@ class HappyJarzApp(tk.Tk):
 
         ttk.Label(
             controls,
-            text="Buttons send into the Jar's normal input path. FULL-only controls stay disabled until advertised by the device.",
+            text="Buttons send into the Jar's normal input path. Controls stay disabled until advertised by the device.",
             style="PanelMuted.TLabel",
             wraplength=620,
         ).grid(row=2, column=0, columnspan=6, sticky="w", padx=3, pady=(5, 0))
@@ -898,7 +956,7 @@ class HappyJarzApp(tk.Tk):
         outer, mapping = self._card(root, 12)
         outer.pack(fill="x")
         ttk.Label(mapping, text="CONTROL MAP", style="Section.TLabel").pack(anchor="w")
-        ttk.Label(mapping, text="Physical layout: D-pad + A/B.  A = Select / Action.  B = Back / ESC.  Hold B = HOME.", style="PanelMuted.TLabel").pack(anchor="w", pady=(7, 10))
+        ttk.Label(mapping, text="D-pad + A/B; optional L/R/Start on firmware 0.18.5+. A = Action. B = Back. Hold B = HOME.", style="PanelMuted.TLabel").pack(anchor="w", pady=(7, 10))
         row = ttk.Frame(mapping, style="Panel.TFrame")
         row.pack(fill="x")
         for label, command in (("JAR MODE", "SET INPUT MODE JAR"), ("MENU MODE", "SET INPUT MODE MENU"), ("GAME MODE", "SET INPUT MODE GAME"), ("TEST INPUT", "TEST INPUT"), ("GET INPUT", "GET INPUT")):
@@ -1275,6 +1333,7 @@ class HappyJarzApp(tk.Tk):
             return
 
         if line.startswith("HJ|TOUCH|") or line.startswith("HJ|INPUT|"):
+            self._last_input_received = time.monotonic()
             fields = self._parse_fields(line)
             aliases = {
                 "c1": "a", "c2": "b",
@@ -1287,7 +1346,7 @@ class HappyJarzApp(tk.Tk):
                     self.touch_vars[dest].set(fields[source])
             return
 
-        if not line.startswith("HJ|LED_FRAME|"):
+        if not line.startswith("HJ|LED_FRAME|") and not line.startswith("HJ|ART|ACK|event=DATA|"):
             self._log(f"RX  {line}")
         fields = self._parse_fields(line)
         if line.startswith("HJ|IDENTITY|"):
@@ -1384,11 +1443,13 @@ class HappyJarzApp(tk.Tk):
             while True:
                 kind, payload = self.events.get_nowait()
                 if kind == "connected":
+                    self._identity_refreshes.clear()
                     self.connection_var.set(f"CONNECTED  •  {payload['port']}")
                     self.status_pill.configure(bg=GOOD_BG, fg=GOOD_FG)
                     self._log(f"Connected on {payload['port']}")
                     self._handle_line(payload["identity"])
                 elif kind == "disconnected":
+                    self._identity_refreshes.clear()
                     self.connection_var.set("WAITING FOR JAR")
                     self.status_pill.configure(bg=WAIT_BG, fg=WAIT_FG)
                     self._log(f"Disconnected from {payload}; scanning continues")

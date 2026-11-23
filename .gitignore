@@ -1,0 +1,12 @@
+# Local compiled firmware, test-only site, and board flash reads
+/release-staging/
+# Arduino build byproducts
+*.elf
+*.map
+*.hex
+# Python caches
+__pycache__/
+*.pyc
+# OS/editor files
+.DS_Store
+Thumbs.db

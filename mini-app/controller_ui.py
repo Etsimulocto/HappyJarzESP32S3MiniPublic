@@ -229,7 +229,11 @@ class HappyJarzApp(base.HappyJarzApp):
         super()._handle_line(line)
 
     def _on_close(self):
+        # Stop unsolicited USB telemetry before closing the serial port.
+        # The standalone jar must keep running without the Pi controller.
         try:
+            self.link.send("STREAM OLED OFF")
+            self.link.send("STREAM LED OFF")
             self.link.send("STREAM TOUCH OFF")
         except Exception:
             pass
